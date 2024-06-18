@@ -1,0 +1,11 @@
+{
+	"id": "vikunja-plugin",
+	"name": "Vikunja Plugin",
+	"version": "1.0.0",
+	"minAppVersion": "0.15.0",
+	"description": "Integrates Vikunja into Obsidian as Task Management Platform.",
+	"author": "Peter Heiss",
+	"authorUrl": "https://github.com/Heiss",
+	"fundingUrl": "https://github.com/Heiss",
+	"isDesktopOnly": false
+}
