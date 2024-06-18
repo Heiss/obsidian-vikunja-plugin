@@ -1,42 +1,37 @@
-import { App, Editor, MarkdownView, Modal, Notice, Plugin, PluginSettingTab, Setting } from 'obsidian';
-import { TaskApi, Configuration, ModelsTask } from 'vikunja_sdk';
-const configuration = new Configuration({ basePath: "https://myvikunjainstance.tld", accessToken: "ASDXYZ" });
-const tasksApi = new TaskApi(configuration);
-const tasks: Promise<ModelsTask[]> = tasksApi.tasksAllGet({});
+import {Notice, Plugin} from 'obsidian';
+import {DEFAULT_SETTINGS, SettingTab, VikunjaPluginSettings} from "./src/settings/SettingTab";
+import {MainModal} from "./src/modals/mainModal";
+import {Tasks} from "./src/vikunja/tasks";
+import {Processor} from "./src/processing/processor";
 
 // Remember to rename these classes and interfaces!
 
-enum useTasksFormat {
-	Tasks,
-}
-
-interface MyPluginSettings {
-	mySetting: string;
-	accessToken: string,
-	vikunjaHost: string,
-	useTasksFormat: useTasksFormat,
-	useDailyPlugin: boolean,
-	defaultVikunjaProject: number | undefined
-
-}
-
-const DEFAULT_SETTINGS: MyPluginSettings = {
-	mySetting: 'default',
-	accessToken: "",
-	vikunjaHost: "https://try.vikunja.io/login",
-	// TODO: Not implemented
-	useTasksFormat: useTasksFormat.Tasks,
-	// TODO: Not implemented
-	useDailyPlugin: false,
-	defaultVikunjaProject: undefined
-}
-
-export default class MyPlugin extends Plugin {
-	settings: MyPluginSettings;
+export default class VikunjaPlugin extends Plugin {
+	settings: VikunjaPluginSettings;
+	vikunjaTasksApi: Tasks;
+	processor: Processor;
 
 	async onload() {
 		await this.loadSettings();
+		this.vikunjaTasksApi = new Tasks(this.app, this);
+		this.processor = new Processor(this.app, this);
 
+		this.setupObsidian();
+	}
+
+	onunload() {
+
+	}
+
+	async loadSettings() {
+		this.settings = Object.assign({}, DEFAULT_SETTINGS, await this.loadData());
+	}
+
+	async saveSettings() {
+		await this.saveData(this.settings);
+	}
+
+	private setupObsidian() {
 		// This creates an icon in the left ribbon.
 		const ribbonIconEl = this.addRibbonIcon('dice', 'Sample Plugin', (evt: MouseEvent) => {
 			// Called when the user clicks the icon.
@@ -54,40 +49,21 @@ export default class MyPlugin extends Plugin {
 			id: 'open-sample-modal-simple',
 			name: 'Open sample modal (simple)',
 			callback: () => {
-				new SampleModal(this.app).open();
+				new MainModal(this.app).open();
 			}
 		});
-		// This adds an editor command that can perform some operation on the current editor instance
-		this.addCommand({
-			id: 'sample-editor-command',
-			name: 'Sample editor command',
-			editorCallback: (editor: Editor, view: MarkdownView) => {
-				console.log(editor.getSelection());
-				editor.replaceSelection('Sample Editor Command');
-			}
-		});
+
 		// This adds a complex command that can check whether the current state of the app allows execution of the command
 		this.addCommand({
-			id: 'open-sample-modal-complex',
-			name: 'Open sample modal (complex)',
-			checkCallback: (checking: boolean) => {
-				// Conditions to check
-				const markdownView = this.app.workspace.getActiveViewOfType(MarkdownView);
-				if (markdownView) {
-					// If checking is true, we're simply "checking" if the command can be run.
-					// If checking is false, then we want to actually perform the operation.
-					if (!checking) {
-						new SampleModal(this.app).open();
-					}
-
-					// This command will only show up in Command Palette when the check function returns true
-					return true;
-				}
+			id: 'vikunja-execute-sync-command',
+			name: 'Trigger sync with Vikunja',
+			callback: () => {
+				this.processor.exec();
 			}
 		});
 
 		// This adds a settings tab so the user can configure various aspects of the plugin
-		this.addSettingTab(new SampleSettingTab(this.app, this));
+		this.addSettingTab(new SettingTab(this.app, this));
 
 		// If the plugin hooks up any global DOM events (on parts of the app that doesn't belong to this plugin)
 		// Using this function will automatically remove the event listener when this plugin is disabled.
@@ -98,58 +74,5 @@ export default class MyPlugin extends Plugin {
 		// When registering intervals, this function will automatically clear the interval when the plugin is disabled.
 		this.registerInterval(window.setInterval(() => console.log('setInterval'), 5 * 60 * 1000));
 	}
-
-	onunload() {
-
-	}
-
-	async loadSettings() {
-		this.settings = Object.assign({}, DEFAULT_SETTINGS, await this.loadData());
-	}
-
-	async saveSettings() {
-		await this.saveData(this.settings);
-	}
 }
 
-class SampleModal extends Modal {
-	constructor(app: App) {
-		super(app);
-	}
-
-	onOpen() {
-		const { contentEl } = this;
-		contentEl.setText('Woah!');
-	}
-
-	onClose() {
-		const { contentEl } = this;
-		contentEl.empty();
-	}
-}
-
-class SampleSettingTab extends PluginSettingTab {
-	plugin: MyPlugin;
-
-	constructor(app: App, plugin: MyPlugin) {
-		super(app, plugin);
-		this.plugin = plugin;
-	}
-
-	display(): void {
-		const { containerEl } = this;
-
-		containerEl.empty();
-
-		new Setting(containerEl)
-			.setName('Setting #1')
-			.setDesc('It\'s a secret')
-			.addText(text => text
-				.setPlaceholder('Enter your secret')
-				.setValue(this.plugin.settings.mySetting)
-				.onChange(async (value) => {
-					this.plugin.settings.mySetting = value;
-					await this.plugin.saveSettings();
-				}));
-	}
-}
