@@ -20,11 +20,10 @@
 		"builtin-modules": "3.3.0",
 		"esbuild": "0.17.3",
 		"obsidian": "latest",
+		"obsidian-api": "^1.0.9",
+		"obsidian-daily-notes-interface": "^0.9.4",
 		"obsidian-dataview": "^0.5.66",
 		"tslib": "2.4.0",
 		"typescript": "4.7.4"
-	},
-	"dependencies": {
-		"obsidian-daily-notes-interface": "^0.9.4"
 	}
 }

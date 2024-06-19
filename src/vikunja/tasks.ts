@@ -1,6 +1,6 @@
 import {App} from "obsidian";
 import VikunjaPlugin from "../../main";
-import {Configuration, ModelsTask, TaskApi, TasksIdPostRequest} from "../../vikunja_sdk";
+import {Configuration, ModelsTask, ProjectsIdTasksPutRequest, TaskApi, TasksIdPostRequest} from "../../vikunja_sdk";
 
 class Tasks {
 	plugin: VikunjaPlugin;
@@ -23,10 +23,28 @@ class Tasks {
 		return this.tasksApi.tasksAllGet();
 	}
 
-	async setTask(task: ModelsTask): Promise<ModelsTask> {
-		if (!task.id) throw new Error("Task id is not defined");
+	async updateTask(task: ModelsTask): Promise<ModelsTask> {
+		if (!task.id) throw new Error("TasksApi: Task id is not defined");
 		const param: TasksIdPostRequest = {id: task.id, task: task};
 		return this.tasksApi.tasksIdPost(param);
+	}
+
+	async updateTasks(tasks: ModelsTask[]): Promise<ModelsTask[]> {
+		return Promise.all(tasks.map(task => this.updateTask(task)));
+	}
+
+	async createTask(task: ModelsTask): Promise<ModelsTask> {
+		if (this.plugin.settings.debugging) console.log("TasksApi: Creating task", task);
+		if (!task.projectId) throw new Error("TasksApi: Task projectId is not defined");
+		const param: ProjectsIdTasksPutRequest = {
+			id: task.projectId,
+			task: task
+		};
+		return this.tasksApi.projectsIdTasksPut(param);
+	}
+
+	async createTasks(tasks: ModelsTask[]): Promise<ModelsTask[]> {
+		return Promise.all(tasks.map(task => this.createTask(task)));
 	}
 }
 

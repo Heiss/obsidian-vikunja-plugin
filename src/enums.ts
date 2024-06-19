@@ -3,7 +3,8 @@ enum supportedTasksPluginsFormat {
 }
 
 enum chooseOutputFile {
-	DailyNote
+	DailyNote,
+	File
 }
 
 enum backendToFindTasks {

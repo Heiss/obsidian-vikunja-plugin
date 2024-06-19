@@ -10,10 +10,12 @@ export interface VikunjaPluginSettings {
 	vikunjaHost: string,
 	useTasksFormat: supportedTasksPluginsFormat,
 	chooseOutputFile: chooseOutputFile,
-	dailyNoteAppendMode: boolean,
-	dailyNoteInsertAfter: string,
-	defaultVikunjaProject: number | undefined,
+	chosenOutputFile: string,
+	appendMode: boolean,
+	insertAfter: string,
+	defaultVikunjaProject: number,
 	useTagsInText: boolean,
+	useTagsInTextExceptions: string[],
 	backendToFindTasks: backendToFindTasks,
 	debugging: boolean,
 }
@@ -23,11 +25,13 @@ export const DEFAULT_SETTINGS: VikunjaPluginSettings = {
 	vikunjaAccessToken: "ABXYZ",
 	vikunjaHost: "https://try.vikunja.io/api/v1",
 	useTasksFormat: supportedTasksPluginsFormat.Emoji,
-	chooseOutputFile: chooseOutputFile.DailyNote,
-	dailyNoteAppendMode: true,
-	dailyNoteInsertAfter: "",
-	defaultVikunjaProject: undefined,
+	chooseOutputFile: chooseOutputFile.File,
+	chosenOutputFile: "",
+	appendMode: true,
+	insertAfter: "",
+	defaultVikunjaProject: -1,
 	useTagsInText: false,
+	useTagsInTextExceptions: [],
 	backendToFindTasks: backendToFindTasks.Dataview,
 	debugging: false,
 }
@@ -78,6 +82,7 @@ export class SettingTab extends PluginSettingTab {
 					this.plugin.settings.vikunjaAccessToken = value;
 					await this.plugin.saveSettings();
 					this.plugin.vikunjaTasksApi.init();
+					// TODO: Implement an event to reload API configurations
 				}));
 
 		new Setting(containerEl)
@@ -89,7 +94,7 @@ export class SettingTab extends PluginSettingTab {
 					try {
 						const tasks = await this.plugin.vikunjaTasksApi.getAllTasks();
 						if (this.plugin.settings.debugging) {
-							console.log(`Got tasks in settingsTab:`, tasks);
+							console.log(`SettingsTab: Got tasks:`, tasks);
 						}
 						button.setButtonText("OK! ✅");
 						this.loadApi().then(_r => {
@@ -167,7 +172,7 @@ export class SettingTab extends PluginSettingTab {
 				});
 			});
 
-		new Setting(containerEl).setHeading().setName('Pull from Vikunja').setDesc('');
+		new Setting(containerEl).setHeading().setName('Pull: Obsidian <- Vikunja').setDesc('');
 
 		const targetDesc = document.createDocumentFragment();
 		targetDesc.append('This is the place where tasks from Vikunja will be placed. Currently supported plugins are: ', targetDesc.createEl("a", {
@@ -198,29 +203,41 @@ export class SettingTab extends PluginSettingTab {
 				.setName("Append mode")
 				.setDesc("Append tasks to the daily note at the bottom.")
 				.addToggle(toggle => toggle
-					.setValue(this.plugin.settings.dailyNoteAppendMode)
+					.setValue(this.plugin.settings.appendMode)
 					.onChange(async (value: boolean) => {
-						this.plugin.settings.dailyNoteAppendMode = value;
+						this.plugin.settings.appendMode = value;
 						await this.plugin.saveSettings();
 						this.display();
 					}));
 
-			if (!this.plugin.settings.dailyNoteAppendMode) {
+			if (!this.plugin.settings.appendMode) {
 				new Setting(containerEl)
 					.setName("Insert after")
 					.setDesc("Insert tasks after the given string. The plugin will search in current daily note for the string and insert tasks after it.")
 					.addText(text => text
-						.setValue(this.plugin.settings.dailyNoteInsertAfter)
+						.setValue(this.plugin.settings.insertAfter)
 						.setPlaceholder("# Tasks for today")
 						.onChange(async (value: string) => {
-							this.plugin.settings.dailyNoteInsertAfter = value;
+							this.plugin.settings.insertAfter = value;
 							await this.plugin.saveSettings();
 						}));
 			}
 		}
+		if(this.plugin.settings.chooseOutputFile === chooseOutputFile.File) {
+			new Setting(containerEl)
+				.setName("Output file")
+				.setDesc("Select the file where the tasks will be placed.")
+				.addText(text => text
+					.setValue(this.plugin.settings.chosenOutputFile)
+					.setPlaceholder("path/to/file.md")
+					.onChange(async (value: string) => {
+						this.plugin.settings.chosenOutputFile = value;
+						await this.plugin.saveSettings();
+					}));
+		}
 
 
-		new Setting(containerEl).setHeading().setName('Push to Vikunja').setDesc('');
+		new Setting(containerEl).setHeading().setName('Push: Obsidian -> Vikunja').setDesc('');
 
 		new Setting(containerEl)
 			.setName("Use tags in text")
@@ -230,7 +247,23 @@ export class SettingTab extends PluginSettingTab {
 				.onChange(async (value: boolean) => {
 					this.plugin.settings.useTagsInText = value;
 					await this.plugin.saveSettings();
+					this.display();
 				}));
+
+		if (this.plugin.settings.useTagsInText) {
+
+			new Setting(containerEl)
+				.setName("Exceptions for tags in text")
+				.setDesc("Add tags that should be ignored when using tags in text. Tags added here will not be converted to text when pushed to vikunja. Comma separated.")
+				.addText(text => text
+					.setValue(this.plugin.settings.useTagsInTextExceptions.join(", "))
+					.setPlaceholder("#tag1, #tag2")
+					.onChange(async (value: string) => {
+						this.plugin.settings.useTagsInTextExceptions = value.split(",").map(tag => tag.trim());
+						await this.plugin.saveSettings();
+					}));
+		}
+
 		if (this.projects.length === 0) {
 			new Setting(containerEl).setName("Loading projects...").setDesc("Please wait until the projects are loaded. If this message still there after a few seconds, please check your Vikunja Host and Access Token. Enable debugging and check the console for more information.");
 			this.loadApi().then(_r => {
@@ -243,7 +276,7 @@ export class SettingTab extends PluginSettingTab {
 			.setDesc("This project will be used to place new tasks created by this plugin.")
 			.addDropdown(async dropdown => {
 					if (this.plugin.settings.debugging) {
-						console.log(`Got projects in settingsTab:`, this.projects);
+						console.log(`SettingsTab: Got projects:`, this.projects);
 					}
 
 					for (const project of this.projects) {
@@ -253,10 +286,11 @@ export class SettingTab extends PluginSettingTab {
 						dropdown.addOption(project.id.toString(), project.title);
 					}
 
-					dropdown.setValue(this.plugin.settings.defaultVikunjaProject?.toString() || "");
+					dropdown.setValue(this.plugin.settings.defaultVikunjaProject.toString());
 
 					dropdown.onChange(async (value: string) => {
 						this.plugin.settings.defaultVikunjaProject = parseInt(value);
+						if (this.plugin.settings.debugging) console.log(`SettingsTab: Selected Vikunja project:`, this.plugin.settings.defaultVikunjaProject);
 						await this.plugin.saveSettings();
 					});
 				}
@@ -265,6 +299,13 @@ export class SettingTab extends PluginSettingTab {
 
 	async loadApi() {
 		this.projects = await this.projectsApi.getAllProjects();
+
+		// Set default project if not set
+		if (this.projects.length > 0 && this.plugin.settings.defaultVikunjaProject === null && this.projects[0] !== undefined && this.projects[0].id !== undefined) {
+			this.plugin.settings.defaultVikunjaProject = this.projects[0].id;
+		}
+		if (this.plugin.settings.debugging) console.log(`SettingsTab: Default project set to:`, this.projects[0].id);
+
 		this.display();
 	}
 }

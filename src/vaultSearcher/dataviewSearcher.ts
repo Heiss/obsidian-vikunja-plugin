@@ -1,9 +1,8 @@
-import {App} from "obsidian";
+import {App, TFile} from "obsidian";
 import VikunjaPlugin from "../../main";
 import {DataviewApi, getAPI} from "obsidian-dataview";
-import {VaultSearcher} from "./vaultSearcher";
+import {PluginTask, VaultSearcher} from "./vaultSearcher";
 import {TaskParser} from "src/taskFormats/taskFormats";
-import {ModelsTask} from "vikunja_sdk";
 
 export class DataviewSearcher implements VaultSearcher {
 	app: App;
@@ -16,18 +15,36 @@ export class DataviewSearcher implements VaultSearcher {
 		this.dataviewPlugin = getAPI(this.app);
 	}
 
-	getTasks(parser: TaskParser): ModelsTask[] {
+	getTasks(parser: TaskParser): PluginTask[] {
 		const dv = this.dataviewPlugin;
 		const tasks = dv.pages().file.tasks.values;
 
-		if (this.plugin.settings.debugging) console.log("Found dataview tasks ", tasks);
+		if (this.plugin.settings.debugging) console.log("DataviewSearcher: Found dataview tasks", tasks);
 
-		let tasksFormatted: ModelsTask[] = [];
+		let tasksFormatted: PluginTask[] = [];
 		for (const task of tasks) {
-			tasksFormatted.push(parser.parse(task));
+			let taskBracket = "- [ ]";
+			if (task.completed) {
+				taskBracket = "- [x]";
+			}
+
+			const parsed = parser.parse(`${taskBracket} ${task.text}`)
+
+			const file = this.app.vault.getAbstractFileByPath(task.path);
+			if (!file) {
+				console.error("DataviewSearcher: Could not find file for task", task);
+				continue;
+			}
+			const vaultParsed: PluginTask = {
+				file: file as TFile,
+				lineno: task.line,
+				task: parsed
+			};
+			if (this.plugin.settings.debugging) console.log("DataviewSearcher: Parsed task", parsed);
+			tasksFormatted.push(vaultParsed);
 		}
 
-		if (this.plugin.settings.debugging) console.log("Formatted tasks ", tasksFormatted);
+		if (this.plugin.settings.debugging) console.log("DataviewSearcher: Finally formatted tasks", tasksFormatted);
 
 		return tasksFormatted;
 	}

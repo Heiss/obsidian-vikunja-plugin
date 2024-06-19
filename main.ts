@@ -3,18 +3,19 @@ import {DEFAULT_SETTINGS, SettingTab, VikunjaPluginSettings} from "./src/setting
 import {MainModal} from "./src/modals/mainModal";
 import {Tasks} from "./src/vikunja/tasks";
 import {Processor} from "./src/processing/processor";
+import {UserUser} from "./vikunja_sdk";
 
 // Remember to rename these classes and interfaces!
 
 export default class VikunjaPlugin extends Plugin {
 	settings: VikunjaPluginSettings;
 	vikunjaTasksApi: Tasks;
-	processor: Processor;
+	userObject: UserUser | undefined;
 
 	async onload() {
 		await this.loadSettings();
 		this.vikunjaTasksApi = new Tasks(this.app, this);
-		this.processor = new Processor(this.app, this);
+		this.userObject = undefined;
 
 		this.setupObsidian();
 	}
@@ -57,8 +58,9 @@ export default class VikunjaPlugin extends Plugin {
 		this.addCommand({
 			id: 'vikunja-execute-sync-command',
 			name: 'Trigger sync with Vikunja',
-			callback: () => {
-				this.processor.exec();
+			callback: async () => {
+				const processor = new Processor(this.app, this);
+				await processor.exec();
 			}
 		});
 
