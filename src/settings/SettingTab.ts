@@ -1,8 +1,9 @@
-import {App, PluginSettingTab, Setting} from "obsidian";
+import {App, Notice, PluginSettingTab, Setting} from "obsidian";
 import VikunjaPlugin from "../../main";
 import {Projects} from "../vikunja/projects";
 import {backendToFindTasks, chooseOutputFile, supportedTasksPluginsFormat} from "../enums";
 import {ModelsProject} from "../../vikunja_sdk";
+import {appHasDailyNotesPluginLoaded} from "obsidian-daily-notes-interface";
 
 export interface VikunjaPluginSettings {
 	mySetting: string;
@@ -18,6 +19,10 @@ export interface VikunjaPluginSettings {
 	useTagsInTextExceptions: string[],
 	backendToFindTasks: backendToFindTasks,
 	debugging: boolean,
+	removeTasksIfInVaultNotFound: boolean,
+	removeTasksOnlyInDefaultProject: boolean,
+	enableCron: boolean,
+	cronInterval: number,
 }
 
 export const DEFAULT_SETTINGS: VikunjaPluginSettings = {
@@ -25,7 +30,7 @@ export const DEFAULT_SETTINGS: VikunjaPluginSettings = {
 	vikunjaAccessToken: "ABXYZ",
 	vikunjaHost: "https://try.vikunja.io/api/v1",
 	useTasksFormat: supportedTasksPluginsFormat.Emoji,
-	chooseOutputFile: chooseOutputFile.File,
+	chooseOutputFile: chooseOutputFile.DailyNote,
 	chosenOutputFile: "",
 	appendMode: true,
 	insertAfter: "",
@@ -34,6 +39,10 @@ export const DEFAULT_SETTINGS: VikunjaPluginSettings = {
 	useTagsInTextExceptions: [],
 	backendToFindTasks: backendToFindTasks.Dataview,
 	debugging: false,
+	removeTasksIfInVaultNotFound: false,
+	removeTasksOnlyInDefaultProject: true,
+	enableCron: false,
+	cronInterval: 500,
 }
 
 export class SettingTab extends PluginSettingTab {
@@ -172,6 +181,50 @@ export class SettingTab extends PluginSettingTab {
 				});
 			});
 
+		new Setting(containerEl)
+			.setName("Enable Cron")
+			.setDesc("Enable the cron job to sync tasks automatically.")
+			.addToggle(toggle => toggle
+				.setValue(this.plugin.settings.enableCron)
+				.onChange(async (value: boolean) => {
+					this.plugin.settings.enableCron = value;
+					await this.plugin.saveSettings();
+					this.display();
+				}));
+
+		if (this.plugin.settings.enableCron) {
+			const cronIntervalText = "Set the interval in milliseconds for the cron job. Lower values will result in more frequent syncs, but may cause performance issues or can trigger any network bans.";
+			const cronIntervalDescError = document.createDocumentFragment();
+			cronIntervalDescError.append(cronIntervalText);
+			cronIntervalDescError.append(document.createElement("br"));
+			cronIntervalDescError.append(cronIntervalDescError.createEl("span", {
+				cls: "error_text",
+				text: "Cron interval must be a number and greater or equal than 20s."
+			}));
+
+			const cronIntervalEl = new Setting(containerEl)
+				.setName("Cron Interval")
+				.setDesc(cronIntervalText)
+				.addText(text => text
+					.setValue(this.plugin.settings.cronInterval.toString())
+					.setPlaceholder("300")
+					.onChange(async (value: string) => {
+							const parsed = parseInt(value);
+							if (isNaN(parsed) || parsed < 20) {
+								if (this.plugin.settings.debugging) console.log("Cron interval must be a number and greater or equal than 20. Got", value, parsed);
+								cronIntervalEl.setDesc(cronIntervalDescError.cloneNode(true) as DocumentFragment);
+								return;
+							}
+
+							cronIntervalEl.setDesc(cronIntervalText);
+
+							this.plugin.settings.cronInterval = parseInt(value);
+							await this.plugin.saveSettings();
+						}
+					))
+			;
+		}
+
 		new Setting(containerEl).setHeading().setName('Pull: Obsidian <- Vikunja').setDesc('');
 
 		const targetDesc = document.createDocumentFragment();
@@ -192,6 +245,13 @@ export class SettingTab extends PluginSettingTab {
 
 				dropdown.setValue(this.plugin.settings.chooseOutputFile?.toString());
 				dropdown.onChange(async (value: string) => {
+					if (!appHasDailyNotesPluginLoaded()) {
+						new Notice("Daily notes core plugin is not loaded. So we cannot create daily note. Please install daily notes core plugin. Interrupt now.");
+						if (this.plugin.settings.debugging) console.log("Daily notes core plugin is not loaded. So we cannot create daily note. Please install daily notes core plugin. Interrupt now.");
+						dropdown.setValue(this.plugin.settings.chooseOutputFile.toString());
+						return;
+					}
+
 					this.plugin.settings.chooseOutputFile = parseInt(value) as chooseOutputFile;
 					await this.plugin.saveSettings();
 					this.display();
@@ -223,21 +283,43 @@ export class SettingTab extends PluginSettingTab {
 						}));
 			}
 		}
-		if(this.plugin.settings.chooseOutputFile === chooseOutputFile.File) {
-			new Setting(containerEl)
+		if (this.plugin.settings.chooseOutputFile === chooseOutputFile.File) {
+			const descText = "Select the file where the tasks will be placed.";
+
+			const outputFileDescError = document.createDocumentFragment();
+			outputFileDescError.append(descText);
+			outputFileDescError.append(document.createElement("br"));
+			outputFileDescError.append(outputFileDescError.createEl("span", {
+				cls: "error_text",
+				text: "Output file not found. Please select a valid file to use File as output."
+			}));
+
+			const outputFileEl = new Setting(containerEl)
 				.setName("Output file")
-				.setDesc("Select the file where the tasks will be placed.")
+				.setDesc(descText)
 				.addText(text => text
 					.setValue(this.plugin.settings.chosenOutputFile)
 					.setPlaceholder("path/to/file.md")
 					.onChange(async (value: string) => {
+						if (this.app.vault.getAbstractFileByPath(value) === null) {
+							if (this.plugin.settings.debugging) console.log("Output file not found. Please select a valid file to use File as output.");
+							outputFileEl.setDesc(outputFileDescError.cloneNode(true) as DocumentFragment);
+							return;
+						}
+
+						outputFileEl.setDesc(descText);
+
 						this.plugin.settings.chosenOutputFile = value;
 						await this.plugin.saveSettings();
-					}));
+					})
+				);
 		}
 
 
-		new Setting(containerEl).setHeading().setName('Push: Obsidian -> Vikunja').setDesc('');
+		new Setting(containerEl)
+			.setHeading()
+			.setName('Push: Obsidian -> Vikunja')
+			.setDesc('');
 
 		new Setting(containerEl)
 			.setName("Use tags in text")
@@ -245,13 +327,14 @@ export class SettingTab extends PluginSettingTab {
 			.addToggle(toggle => toggle
 				.setValue(this.plugin.settings.useTagsInText)
 				.onChange(async (value: boolean) => {
-					this.plugin.settings.useTagsInText = value;
-					await this.plugin.saveSettings();
-					this.display();
-				}));
+						this.plugin.settings.useTagsInText = value;
+						await this.plugin.saveSettings();
+
+						this.display();
+					}
+				));
 
 		if (this.plugin.settings.useTagsInText) {
-
 			new Setting(containerEl)
 				.setName("Exceptions for tags in text")
 				.setDesc("Add tags that should be ignored when using tags in text. Tags added here will not be converted to text when pushed to vikunja. Comma separated.")
@@ -262,6 +345,31 @@ export class SettingTab extends PluginSettingTab {
 						this.plugin.settings.useTagsInTextExceptions = value.split(",").map(tag => tag.trim());
 						await this.plugin.saveSettings();
 					}));
+		}
+
+		new Setting(containerEl)
+			.setName("Remove tasks if not found in vault")
+			.setDesc("If IDs not found in the vault, they will be deleted in Vikunja. Mostly, because you delete them. Very helpful, if you only create tasks through Obsidian.")
+			.addToggle(toggle =>
+				toggle
+					.setValue(this.plugin.settings.removeTasksIfInVaultNotFound)
+					.onChange(async (value: boolean) => {
+						this.plugin.settings.removeTasksIfInVaultNotFound = value;
+						await this.plugin.saveSettings();
+						this.display();
+					}));
+
+		if (this.plugin.settings.removeTasksIfInVaultNotFound) {
+			new Setting(containerEl)
+				.setName("Remove tasks only in default project")
+				.setDesc("If enabled, only tasks in the default project will be removed when ID not found in Vault. Otherwise, all tasks will be removed nevertheless the configured project.")
+				.addToggle(toggle =>
+					toggle
+						.setValue(this.plugin.settings.removeTasksOnlyInDefaultProject)
+						.onChange(async (value: boolean) => {
+							this.plugin.settings.removeTasksOnlyInDefaultProject = value;
+							await this.plugin.saveSettings();
+						}));
 		}
 
 		if (this.projects.length === 0) {
@@ -296,6 +404,7 @@ export class SettingTab extends PluginSettingTab {
 				}
 			)
 	}
+
 
 	async loadApi() {
 		this.projects = await this.projectsApi.getAllProjects();

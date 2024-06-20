@@ -4,6 +4,9 @@ import {MainModal} from "./src/modals/mainModal";
 import {Tasks} from "./src/vikunja/tasks";
 import {Processor} from "./src/processing/processor";
 import {UserUser} from "./vikunja_sdk";
+import {backendToFindTasks, chooseOutputFile} from "./src/enums";
+import {appHasDailyNotesPluginLoaded} from "obsidian-daily-notes-interface";
+import {getAPI} from "obsidian-dataview";
 
 // Remember to rename these classes and interfaces!
 
@@ -11,9 +14,13 @@ export default class VikunjaPlugin extends Plugin {
 	settings: VikunjaPluginSettings;
 	vikunjaTasksApi: Tasks;
 	userObject: UserUser | undefined;
+	foundProblem = false;
+	processor: Processor;
 
 	async onload() {
 		await this.loadSettings();
+		this.checkDependencies();
+
 		this.vikunjaTasksApi = new Tasks(this.app, this);
 		this.userObject = undefined;
 
@@ -33,6 +40,8 @@ export default class VikunjaPlugin extends Plugin {
 	}
 
 	private setupObsidian() {
+		this.processor = new Processor(this.app, this);
+
 		// This creates an icon in the left ribbon.
 		const ribbonIconEl = this.addRibbonIcon('dice', 'Sample Plugin', (evt: MouseEvent) => {
 			// Called when the user clicks the icon.
@@ -59,8 +68,7 @@ export default class VikunjaPlugin extends Plugin {
 			id: 'vikunja-execute-sync-command',
 			name: 'Trigger sync with Vikunja',
 			callback: async () => {
-				const processor = new Processor(this.app, this);
-				await processor.exec();
+				await this.processor.exec();
 			}
 		});
 
@@ -74,7 +82,48 @@ export default class VikunjaPlugin extends Plugin {
 		});
 
 		// When registering intervals, this function will automatically clear the interval when the plugin is disabled.
-		this.registerInterval(window.setInterval(() => console.log('setInterval'), 5 * 60 * 1000));
+		this.registerInterval(window
+			.setInterval(async () => {
+					// this runs anyway, also when cron not enabled, to be dynamically enabled by settings without disable/enable plugin
+					if (this.settings.enableCron) {
+						await this.processor.exec()
+					}
+				},
+				this.settings.cronInterval * 1000)
+		);
+	}
+
+	private checkDependencies() {
+		if (this.settings.chooseOutputFile === chooseOutputFile.DailyNote && appHasDailyNotesPluginLoaded()) {
+			new Notice("Vikunja Plugin: Daily notes core plugin is not loaded. So we cannot create daily note. Please install daily notes core plugin to use Daily Note.")
+			if (this.settings.debugging) console.log("Vikunja Plugin: Daily notes core plugin is not loaded. So we cannot create daily note. Please install daily notes core plugin to use Daily Note.");
+			this.foundProblem = true;
+		}
+
+		if (this.settings.chooseOutputFile === chooseOutputFile.File) {
+			if (this.settings.chosenOutputFile === "") {
+				new Notice("Vikunja Plugin: Output file is not selected. Please select a file to use File as output.");
+				if (this.settings.debugging) console.log("Vikunja Plugin: Output file is not selected. Please select a file to use File as output.");
+				this.foundProblem = true;
+			}
+			if (this.app.vault.getAbstractFileByPath(this.settings.chosenOutputFile) === null) {
+				new Notice("Vikunja Plugin: Output file not found. Please select a valid file to use File as output.");
+				if (this.settings.debugging) console.log("Vikunja Plugin: Output file not found. Please select a valid file to use File as output.");
+				this.foundProblem = true;
+			}
+		}
+
+		if (this.settings.backendToFindTasks === backendToFindTasks.Dataview && getAPI(this.app) === undefined) {
+			new Notice("Vikunja Plugin: Obsidian Dataview plugin is not loaded. Please install Obsidian Dataview plugin to use Dataview.");
+			if (this.settings.debugging) console.log("Vikunja Plugin: Obsidian Dataview plugin is not loaded. Please install Obsidian Dataview plugin to use Dataview.");
+			this.foundProblem = true;
+		}
+
+		if (this.foundProblem) {
+			new Notice(
+				"Vikunja Plugin: Found problems. Please fix them in settings before using the plugin."
+			);
+		}
 	}
 }
 

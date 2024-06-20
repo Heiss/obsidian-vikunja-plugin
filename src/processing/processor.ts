@@ -1,5 +1,5 @@
 import VikunjaPlugin from "../../main";
-import {App, moment, TFile} from "obsidian";
+import {App, moment, Notice, TFile} from "obsidian";
 import {backendToFindTasks, chooseOutputFile, supportedTasksPluginsFormat} from "../enums";
 import {PluginTask, VaultSearcher} from "../vaultSearcher/vaultSearcher";
 import {DataviewSearcher} from "../vaultSearcher/dataviewSearcher";
@@ -32,6 +32,11 @@ class Processor {
 
 	async exec() {
 		if (this.plugin.settings.debugging) console.log("Processor: Start processing");
+		if (this.plugin.foundProblem) {
+			new Notice("Vikunja Plugin: Found problems in plugin. Have to be fixed first. Syncing is stopped.");
+			if (this.plugin.settings.debugging) console.log("Processor: Found problems in plugin. Have to be fixed first.");
+			return;
+		}
 
 		// Check if user is logged in
 		if (!this.plugin.userObject) {
@@ -58,7 +63,7 @@ class Processor {
 		await this.updateTasksInVikunja(localTasks, vikunjaTasks);
 
 		// TODO Think about, how to delete tasks in vikunja and vault and how to check for this.
-		// Maybe a new setting option?
+		this.removeTasksInVikunjaIfNotInVault(localTasks, vikunjaTasks);
 
 		if (this.plugin.settings.debugging) console.log("Processor: End processing");
 	}
@@ -162,9 +167,12 @@ class Processor {
 
 		const createdTasksInVault = tasksToPushToVault.map(async task => {
 			let file: TFile;
+			const chosenFile = this.app.vault.getAbstractFileByPath(this.plugin.settings.chosenOutputFile);
+			const date = moment();
+			const dailies = getAllDailyNotes()
+
 			switch (this.plugin.settings.chooseOutputFile) {
 				case chooseOutputFile.File:
-					const chosenFile = this.app.vault.getAbstractFileByPath(this.plugin.settings.chosenOutputFile);
 					if (!chosenFile) throw new Error("Output file not found");
 					file = chosenFile as TFile;
 					break;
@@ -172,8 +180,7 @@ class Processor {
 					if (!appHasDailyNotesPluginLoaded()) {
 						console.log("Daily notes core plugin is not loaded. So we cannot create daily note. Please install daily notes core plugin. Interrupt now.")
 					}
-					const date = moment();
-					const dailies = getAllDailyNotes()
+
 					file = getDailyNote(date, dailies)
 					if (file == null) {
 						file = await createDailyNote(date)
@@ -220,6 +227,22 @@ class Processor {
 		// Maybe the ctime from obsidian and updated from vikunja can be used for this.
 		if (this.plugin.settings.debugging) console.log("Processor: Update tasks in vault");
 		console.log("Processor: Method not implemented yet to update tasks vault")
+	}
+
+	private async removeTasksInVikunjaIfNotInVault(localTasks: PluginTask[], vikunjaTasks: ModelsTask[]) {
+		if (!this.plugin.settings.removeTasksIfInVaultNotFound) {
+			if (this.plugin.settings.debugging) console.log("Processor: Not deleting tasks in vikunja if ID not found in vault");
+			return;
+		}
+
+		let tasksToDeleteInVikunja = vikunjaTasks.filter(task => !localTasks.find(vaultTask => vaultTask.task.id === task.id));
+		if (this.plugin.settings.debugging) console.log("Processor: Deleting tasks in vikunja", tasksToDeleteInVikunja);
+
+		if (this.plugin.settings.removeTasksOnlyInDefaultProject) {
+			tasksToDeleteInVikunja = tasksToDeleteInVikunja.filter(task => task.projectId === this.plugin.settings.defaultVikunjaProject);
+		}
+		await this.plugin.vikunjaTasksApi.deleteTasks(tasksToDeleteInVikunja);
+
 	}
 }
 

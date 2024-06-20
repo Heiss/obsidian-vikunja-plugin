@@ -21,7 +21,7 @@ export class DataviewSearcher implements VaultSearcher {
 
 		if (this.plugin.settings.debugging) console.log("DataviewSearcher: Found dataview tasks", tasks);
 
-		let tasksFormatted: PluginTask[] = [];
+		const tasksFormatted: PluginTask[] = [];
 		for (const task of tasks) {
 			let taskBracket = "- [ ]";
 			if (task.completed) {

@@ -11,3 +11,7 @@ If your plugin does not need CSS, delete this file.
 .cm-line:not(:hover):not(.cm-active) span.cm-comment {
 	display: none;
 }
+
+.error_text {
+	color: red;
+}

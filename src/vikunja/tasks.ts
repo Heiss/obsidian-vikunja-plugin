@@ -1,6 +1,13 @@
 import {App} from "obsidian";
 import VikunjaPlugin from "../../main";
-import {Configuration, ModelsTask, ProjectsIdTasksPutRequest, TaskApi, TasksIdPostRequest} from "../../vikunja_sdk";
+import {
+	Configuration,
+	ModelsTask,
+	ProjectsIdTasksPutRequest,
+	TaskApi,
+	TasksIdDeleteRequest,
+	TasksIdPostRequest
+} from "../../vikunja_sdk";
 
 class Tasks {
 	plugin: VikunjaPlugin;
@@ -45,6 +52,17 @@ class Tasks {
 
 	async createTasks(tasks: ModelsTask[]): Promise<ModelsTask[]> {
 		return Promise.all(tasks.map(task => this.createTask(task)));
+	}
+
+	async deleteTask(task: ModelsTask) {
+		if (this.plugin.settings.debugging) console.log("TasksApi: Deleting task", task);
+		if (!task.id) throw new Error("TasksApi: Task id is not defined");
+		const param: TasksIdDeleteRequest = {id: task.id};
+		return this.tasksApi.tasksIdDelete(param);
+	}
+
+	deleteTasks(tasksToDeleteInVikunja: ModelsTask[]) {
+		return Promise.all(tasksToDeleteInVikunja.map(task => this.deleteTask(task)));
 	}
 }
 
