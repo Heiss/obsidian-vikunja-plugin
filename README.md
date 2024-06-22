@@ -1,11 +1,17 @@
 # Obsidian Vikunja Plugin
 
-This **unofficial** plugin connects Obsidian and [Vikunja](https://vikunja.io). Vikunja is a todo-App and task manager that helps you to organize your life. It can be used as a self-host replacement for [todoist.com](todoist.com/). Synchronize with this plugin your vault with your Vikunja instance back and forth. It holds a lot of settings to customize it to your workflow needs.
+This **unofficial** plugin connects Obsidian and [Vikunja](https://vikunja.io). Vikunja is a todo-App and task manager
+that helps you to organize your life. It can be used as a self-host replacement for [todoist.com](todoist.com/).
+Synchronize with this plugin your vault with your Vikunja instance back and forth. It holds a lot of settings to
+customize it to your workflow needs.
+
+Per default, this plugin only runs on manual trigger. In settings you can find a setting to enable automatic sync, also
+the interval can be set there. All tasks will be pushed to vikunja on first sync and stay in sync.
 
 This plugin depends on some other plugins to work: (subject to change with later updates)
 
-- [Dataview Plugin]()
-- [Daily Note Core Plugin]()
+- [Dataview Plugin](https://github.com/blacksmithgu/obsidian-dataview)
+- [Daily Note Core Plugin](https://help.obsidian.md/Plugins/Daily+notes)
 
 The experience with this plugin is a lot like the excellent plugins for todoist:
 
