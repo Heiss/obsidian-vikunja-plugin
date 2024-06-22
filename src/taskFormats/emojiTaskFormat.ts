@@ -194,11 +194,15 @@ class EmojiTaskFormatter implements TaskFormatter {
 			additionalContent.push(dueDateText);
 		}
 
-		if (!this.plugin.settings.useTagsInText && task.labels) {
-			task.labels.forEach(label => {
+		if (task.labels) {
+			for (const label of task.labels) {
+				if (!label.title) throw new Error("EmojiTaskFormatter: Label title is required" + label);
+				if (this.plugin.settings.useTagsInText && task.title.includes(label.title)) {
+					continue;
+				}
 				const taskTagsText = `#${label.title}`;
 				additionalContent.push(taskTagsText);
-			});
+			}
 		}
 
 		const vikunjaLink = `${this.plugin.settings.vikunjaHost}/tasks/${task.id}`

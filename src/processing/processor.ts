@@ -267,7 +267,7 @@ class Processor {
 		if (this.plugin.settings.debugging) console.log("Processor: Created tasks in vikunja", createdTasksInVikunja);
 
 		const tasksToUpdateInVault = localTasks.map(task => {
-			const createdTask = createdTasksInVikunja.find(vikunjaTask => task.task.id === undefined && vikunjaTask.title === task.task.title);
+			const createdTask = createdTasksInVikunja.find(vikunjaTask => vikunjaTask.title === task.task.title);
 			if (createdTask) {
 				task.task = createdTask;
 			}

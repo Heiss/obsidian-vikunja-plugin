@@ -85,9 +85,7 @@ class Label {
 
 	async deleteUnusedLabels(usedLabels: ModelsLabel[]) {
 		const allLabels = await this.getLabels();
-		const labelTitles = allLabels.map(label => label.title);
-		const unusedLabels = allLabels.filter(label => !labelTitles.includes(label.title));
-		const unusedLabelsFiltered = unusedLabels.filter(label => !usedLabels.map(label => label.title).includes(label.title));
+		const unusedLabelsFiltered = allLabels.filter(labelFromVikunja => !usedLabels.find(labelFromVault => labelFromVault.title === labelFromVikunja.title));
 		if (this.plugin.settings.debugging) console.log("LabelsAPI: Unused labels", unusedLabelsFiltered);
 
 		return Promise.all(unusedLabelsFiltered.map(label =>
