@@ -28,6 +28,7 @@ export type ModelsSharingType = typeof ModelsSharingType[keyof typeof ModelsShar
 export function instanceOfModelsSharingType(value: any): boolean {
     for (const key in ModelsSharingType) {
         if (Object.prototype.hasOwnProperty.call(ModelsSharingType, key)) {
+			// @ts-ignore
             if (ModelsSharingType[key] === value) {
                 return true;
             }

@@ -37,6 +37,7 @@ export type ModelsRelationKind = typeof ModelsRelationKind[keyof typeof ModelsRe
 export function instanceOfModelsRelationKind(value: any): boolean {
     for (const key in ModelsRelationKind) {
         if (Object.prototype.hasOwnProperty.call(ModelsRelationKind, key)) {
+			// @ts-ignore
             if (ModelsRelationKind[key] === value) {
                 return true;
             }

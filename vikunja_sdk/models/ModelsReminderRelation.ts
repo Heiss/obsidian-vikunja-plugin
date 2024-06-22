@@ -28,6 +28,7 @@ export type ModelsReminderRelation = typeof ModelsReminderRelation[keyof typeof 
 export function instanceOfModelsReminderRelation(value: any): boolean {
     for (const key in ModelsReminderRelation) {
         if (Object.prototype.hasOwnProperty.call(ModelsReminderRelation, key)) {
+			// @ts-ignore
             if (ModelsReminderRelation[key] === value) {
                 return true;
             }

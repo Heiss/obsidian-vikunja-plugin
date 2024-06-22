@@ -28,6 +28,7 @@ export type ModelsRight = typeof ModelsRight[keyof typeof ModelsRight];
 export function instanceOfModelsRight(value: any): boolean {
     for (const key in ModelsRight) {
         if (Object.prototype.hasOwnProperty.call(ModelsRight, key)) {
+			// @ts-ignore
             if (ModelsRight[key] === value) {
                 return true;
             }

@@ -28,7 +28,8 @@ export type ModelsTaskRepeatMode = typeof ModelsTaskRepeatMode[keyof typeof Mode
 export function instanceOfModelsTaskRepeatMode(value: any): boolean {
     for (const key in ModelsTaskRepeatMode) {
         if (Object.prototype.hasOwnProperty.call(ModelsTaskRepeatMode, key)) {
-            if (ModelsTaskRepeatMode[key] === value) {
+            // @ts-ignore
+			if (ModelsTaskRepeatMode[key] === value) {
                 return true;
             }
         }

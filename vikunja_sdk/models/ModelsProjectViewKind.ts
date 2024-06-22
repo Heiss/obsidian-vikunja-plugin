@@ -29,6 +29,7 @@ export type ModelsProjectViewKind = typeof ModelsProjectViewKind[keyof typeof Mo
 export function instanceOfModelsProjectViewKind(value: any): boolean {
     for (const key in ModelsProjectViewKind) {
         if (Object.prototype.hasOwnProperty.call(ModelsProjectViewKind, key)) {
+			// @ts-ignore
             if (ModelsProjectViewKind[key] === value) {
                 return true;
             }

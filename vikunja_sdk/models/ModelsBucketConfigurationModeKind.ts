@@ -28,6 +28,7 @@ export type ModelsBucketConfigurationModeKind = typeof ModelsBucketConfiguration
 export function instanceOfModelsBucketConfigurationModeKind(value: any): boolean {
     for (const key in ModelsBucketConfigurationModeKind) {
         if (Object.prototype.hasOwnProperty.call(ModelsBucketConfigurationModeKind, key)) {
+			// @ts-ignore
             if (ModelsBucketConfigurationModeKind[key] === value) {
                 return true;
             }
