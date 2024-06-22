@@ -9,7 +9,7 @@ interface PluginTask {
 }
 
 interface VaultSearcher {
-	getTasks(parser: TaskParser): PluginTask[];
+	getTasks(parser: TaskParser): Promise<PluginTask[]>;
 }
 
 export type {VaultSearcher, PluginTask};

@@ -15,7 +15,7 @@ export class DataviewSearcher implements VaultSearcher {
 		this.dataviewPlugin = getAPI(this.app);
 	}
 
-	getTasks(parser: TaskParser): PluginTask[] {
+	async getTasks(parser: TaskParser): Promise<PluginTask[]> {
 		const dv = this.dataviewPlugin;
 		const tasks = dv.pages().file.tasks.values;
 
@@ -28,7 +28,7 @@ export class DataviewSearcher implements VaultSearcher {
 				taskBracket = "- [x]";
 			}
 
-			const parsed = parser.parse(`${taskBracket} ${task.text}`)
+			const parsed = await parser.parse(`${taskBracket} ${task.text}`)
 
 			const file = this.app.vault.getAbstractFileByPath(task.path);
 			if (!file) {

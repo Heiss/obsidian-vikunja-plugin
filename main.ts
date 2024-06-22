@@ -7,22 +7,25 @@ import {UserUser} from "./vikunja_sdk";
 import {backendToFindTasks, chooseOutputFile} from "./src/enums";
 import {appHasDailyNotesPluginLoaded} from "obsidian-daily-notes-interface";
 import {getAPI} from "obsidian-dataview";
+import {Label} from "./src/vikunja/labels";
 
 // Remember to rename these classes and interfaces!
 
 export default class VikunjaPlugin extends Plugin {
 	settings: VikunjaPluginSettings;
-	vikunjaTasksApi: Tasks;
+	tasksApi: Tasks;
 	userObject: UserUser | undefined;
 	foundProblem = false;
+	labelsApi: Label;
 	processor: Processor;
 
 	async onload() {
 		await this.loadSettings();
 		this.checkDependencies();
 
-		this.vikunjaTasksApi = new Tasks(this.app, this);
+		this.tasksApi = new Tasks(this.app, this);
 		this.userObject = undefined;
+		this.labelsApi = new Label(this.app, this);
 
 		this.setupObsidian();
 	}
@@ -43,7 +46,7 @@ export default class VikunjaPlugin extends Plugin {
 		this.processor = new Processor(this.app, this);
 
 		// This creates an icon in the left ribbon.
-		const ribbonIconEl = this.addRibbonIcon('dice', 'Sample Plugin', (evt: MouseEvent) => {
+		const ribbonIconEl = this.addRibbonIcon('dice', 'Sample Plugin', (_evt: MouseEvent) => {
 			// Called when the user clicks the icon.
 			new Notice('This is a notice!');
 		});
@@ -93,7 +96,7 @@ export default class VikunjaPlugin extends Plugin {
 		);
 	}
 
-	private checkDependencies() {
+	checkDependencies() {
 		if (this.settings.chooseOutputFile === chooseOutputFile.DailyNote && appHasDailyNotesPluginLoaded()) {
 			new Notice("Vikunja Plugin: Daily notes core plugin is not loaded. So we cannot create daily note. Please install daily notes core plugin to use Daily Note.")
 			if (this.settings.debugging) console.log("Vikunja Plugin: Daily notes core plugin is not loaded. So we cannot create daily note. Please install daily notes core plugin to use Daily Note.");

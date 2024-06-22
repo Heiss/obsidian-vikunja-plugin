@@ -6,6 +6,7 @@ import VikunjaPlugin from "../../main";
 const keywords = {
 	VIKUNJA_TAG: "#VIKUNJA",
 	DUE_DATE: "🗓️|📅|📆|🗓",
+	DONE_DATE: "✅",
 };
 
 const REGEX = {
@@ -13,14 +14,16 @@ const REGEX = {
 	VIKUNJA_ID: /\[vikunja_id::\s*\d+\]/,
 	VIKUNJA_ID_NUM: /\[vikunja_id::\s*(.*?)\]/,
 	VIKUNJA_LINK: /\[link\]\(.*?\)/,
-	DUE_DATE_WITH_EMOJ: new RegExp(`(${keywords.DUE_DATE})\\s?\\d{4}-\\d{2}-\\d{2}(T\\d{2}:\\d{2})*`),
-	DUE_DATE: new RegExp(`(?:${keywords.DUE_DATE})\\s?(\\d{4}-\\d{2}-\\d{2})(T\\d{2}:\\d{2})*`),
+	DUE_DATE_WITH_EMOJ: new RegExp(`(${keywords.DUE_DATE})\\s?\\d{4}-\\d{2}-\\d{2}(T\\d{2}:\\d{2}Z)?`),
+	DUE_DATE: new RegExp(`(?:${keywords.DUE_DATE})\\s?(\\d{4}-\\d{2}-\\d{2})(T\\d{2}:\\d{2}Z)?`),
+	DONE_DATE: new RegExp(`(?:${keywords.DONE_DATE})\\s?(\\d{4}-\\d{2}-\\d{2})(T\\d{2}:\\d{2}Z)?`),
 	PROJECT_NAME: /\[project::\s*(.*?)\]/,
 	TASK_CONTENT: {
 		REMOVE_PRIORITY: /\s!!([1-4])\s/,
 		REMOVE_TAGS: /(^|\s)(#[a-zA-Z\d\u4e00-\u9fa5-]+)/g,
 		REMOVE_SPACE: /^\s+|\s+$/g,
-		REMOVE_DATE: new RegExp(`(${keywords.DUE_DATE})\\s?\\d{4}-\\d{2}-\\d{2}(T\\d{2}:\\d{2})*`),
+		REMOVE_DATE: new RegExp(`(${keywords.DUE_DATE})\\s?\\d{4}-\\d{2}-\\d{2}(T\\d{2}:\\d{2}Z)?`),
+		REMOVE_DONE_DATE: new RegExp(`(${keywords.DONE_DATE})\\s?\\d{4}-\\d{2}-\\d{2}(T\\d{2}:\\d{2}Z)?`),
 		REMOVE_INLINE_METADATA: /%%\[\w+::\s*\w+\]%%/,
 		REMOVE_CHECKBOX: /^(-|\*)\s+\[(x|X| )\]\s/,
 		REMOVE_CHECKBOX_WITH_INDENTATION: /^([ \t]*)?(-|\*)\s+\[(x|X| )\]\s/,
@@ -54,18 +57,21 @@ class EmojiTaskParser implements TaskParser {
 	* - [x] #task Has a done date ✅ 2023-04-17
 	* - [-] #task Has a cancelled date ❌ 2023-04-18
 	*/
-	parse(value: string): ModelsTask {
+	async parse(value: string): Promise<ModelsTask> {
 		if (!value.startsWith("- [")) {
 			throw new Error("EmojiTaskParser: Invalid task format: " + value);
 		}
 
 		const vikunjaId = this.getVikunjaIdFromLineText(value);
+		const isCompleted = this.checkIfTaskIsCompleted(value);
 		const task: ModelsTask = {
 			id: vikunjaId !== null ? vikunjaId : undefined,
-			labels: this.getTagsFromText(value),
+			labels: await this.getTagsFromText(value),
 			title: this.getTaskContentFromLineText(value),
 			dueDate: this.getDueDateFromLineText(value),
 			projectId: this.plugin.settings.defaultVikunjaProject,
+			done: isCompleted,
+			doneAt: this.getDoneDateFromLineText(value),
 		};
 
 		if (this.plugin.settings.debugging) console.log("EmojiTaskParser: Task parsed", task);
@@ -73,27 +79,24 @@ class EmojiTaskParser implements TaskParser {
 		return task;
 	}
 
-	getTagsFromText(lineText: string): ModelsLabel[] {
+	async getTagsFromText(lineText: string): Promise<ModelsLabel[]> {
 		const tags = lineText.match(REGEX.ALL_TAGS);
-		let tagsText: ModelsLabel[] = [];
-
-		if (tags) {
-			// Remove '#' from each tag
-			tagsText = tags
-				.map(tag => tag
-					.replace('#', '')
-					.trim()
-					.toString())
-				.map(v => {
-					const label: ModelsLabel = {
-						title: v,
-						createdBy: this.plugin.userObject,
-					};
-					return label;
-				});
+		if (!tags) {
+			if (this.plugin.settings.debugging) console.log("EmojiTaskParser: No tags found in line text", lineText);
+			return [];
 		}
 
-		return tagsText;
+		let labels: ModelsLabel[] = [];
+		for (const tag of tags
+			.map(tag => tag
+				.replace('#', '')
+				.trim()
+				.toString())
+			) {
+			labels.push({title: tag})
+		}
+
+		return labels;
 	}
 
 
@@ -112,6 +115,7 @@ class EmojiTaskParser implements TaskParser {
 			TaskContent = TaskContent.replaceAll("#", "")
 		}
 		TaskContent = TaskContent.replace(REGEX.TASK_CONTENT.REMOVE_DATE, "")
+			.replace(REGEX.TASK_CONTENT.REMOVE_DONE_DATE, "")
 			.replace(REGEX.TASK_CONTENT.REMOVE_CHECKBOX, "")
 			.replace(REGEX.TASK_CONTENT.REMOVE_CHECKBOX_WITH_INDENTATION, "")
 			.replace(REGEX.TASK_CONTENT.REMOVE_SPACE, "")
@@ -134,12 +138,12 @@ class EmojiTaskParser implements TaskParser {
 		}
 		const day = date[1];
 
-		let time = "12:00:00Z"
+		let time = "12:00:00"
 		// check for time
 		if (date[2] !== undefined) {
 			time = date[2]
 		}
-		const result = `${day}T${time}`;
+		const result = `${day}T${time}Z`;
 		if (this.plugin.settings.debugging) console.log("EmojiTaskParser: Due date parsed", result);
 		return result;
 	}
@@ -147,6 +151,27 @@ class EmojiTaskParser implements TaskParser {
 	getVikunjaIdFromLineText(text: string): number | null {
 		const result = REGEX.VIKUNJA_ID_NUM.exec(text);
 		return result ? parseInt(result[1]) : null;
+	}
+
+	private checkIfTaskIsCompleted(value: string) {
+		return REGEX.TASK_CHECKBOX_CHECKED.test(value);
+	}
+
+	private getDoneDateFromLineText(value: string): string | undefined {
+		const date = REGEX.DONE_DATE.exec(value);
+		if (!date || date[1] === undefined) {
+			return undefined;
+		}
+
+		const day = date[1];
+		let time = "12:00:00"
+		// check for time
+		if (date[2] !== undefined) {
+			time = date[2]
+		}
+		const result = `${day}T${time}Z`;
+		if (this.plugin.settings.debugging) console.log("EmojiTaskParser: Done date parsed", result);
+		return result;
 	}
 }
 
@@ -157,13 +182,19 @@ class EmojiTaskFormatter implements TaskFormatter {
 		this.plugin = plugin;
 	}
 
-	format(task: ModelsTask): string {
+	async format(task: ModelsTask): Promise<string> {
 		let result = "";
 
 		result += task.title;
 
-		if (task.dueDate) {
-			result += ` 📅 ${task.dueDate}`;
+		if (task.dueDate && task.dueDate !== "0001-01-01T00:00:00Z") {
+			const dueDate = task.dueDate.split("T")[0];
+			result += ` 📅 ${dueDate}`;
+		}
+
+		if (task.doneAt && task.doneAt !== "0001-01-01T00:00:00Z") {
+			const doneDate = task.doneAt.split("T")[0];
+			result += ` ✅ ${doneDate}`;
 		}
 
 		if (!this.plugin.settings.useTagsInText && task.labels) {

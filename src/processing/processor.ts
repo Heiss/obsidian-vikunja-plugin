@@ -1,4 +1,4 @@
-import VikunjaPlugin from "../../main";
+import Plugin from "../../main";
 import {App, moment, Notice, TFile} from "obsidian";
 import {backendToFindTasks, chooseOutputFile, supportedTasksPluginsFormat} from "../enums";
 import {PluginTask, VaultSearcher} from "../vaultSearcher/vaultSearcher";
@@ -15,12 +15,12 @@ import {
 
 class Processor {
 	app: App;
-	plugin: VikunjaPlugin;
+	plugin: Plugin;
 	vaultSearcher: VaultSearcher;
 	taskParser: TaskParser;
 	taskFormatter: TaskFormatter;
 
-	constructor(app: App, plugin: VikunjaPlugin) {
+	constructor(app: App, plugin: Plugin) {
 		this.app = app;
 		this.plugin = plugin;
 
@@ -40,46 +40,50 @@ class Processor {
 
 		// Check if user is logged in
 		if (!this.plugin.userObject) {
-			// FIXME Currently cannot be used, because there is a bug in vikunja, which returns 401 in api to get the user object.
+			// FIXME Currently cannot be used, because there is a bug in Vikunja, which returns 401 in api to get the user object.
 			//this.plugin.userObject = await new User(this.app, this.plugin).getUser();
 		}
 
 		// Get all tasks in vikunja and vault
 		if (this.plugin.settings.debugging) console.log("Processor: Pulling tasks from vault");
-		const localTasks = this.vaultSearcher.getTasks(this.taskParser);
+		let localTasks = await this.vaultSearcher.getTasks(this.taskParser);
 		if (this.plugin.settings.debugging) console.log("Processor: Got tasks from vault", localTasks);
 
-		if (this.plugin.settings.debugging) console.log("Processor: Pulling tasks from vikunja");
-		const vikunjaTasks = await this.plugin.vikunjaTasksApi.getAllTasks();
-		if (this.plugin.settings.debugging) console.log("Processor: Got tasks from vikujnja", vikunjaTasks);
+		if (this.plugin.settings.debugging) console.log("Processor: Pulling tasks from Vikunja");
+		const vikunjaTasks = await this.plugin.tasksApi.getAllTasks();
+		if (this.plugin.settings.debugging) console.log("Processor: Got tasks from Vikunja", vikunjaTasks);
 
 		// Processing steps
-		if (this.plugin.settings.debugging) console.log("Processor: Creating tasks in vikunja and vault");
+		if (this.plugin.settings.debugging) console.log("Processor: Deleting tasks in Vikunja");
+		await this.removeTasksInVikunjaIfNotInVault(localTasks, vikunjaTasks);
+		await this.removeLabelsInVikunjaIfNotInVault(localTasks, vikunjaTasks);
+
+		if (this.plugin.settings.debugging) console.log("Processor: Creating labels in Vikunja", localTasks);
+		localTasks = await this.createLabels(localTasks);
+
+		if (this.plugin.settings.debugging) console.log("Processor: Creating tasks in Vikunja and vault");
 		await this.pullTasksFromVikunjaToVault(localTasks, vikunjaTasks);
 		await this.pushTasksFromVaultToVikunja(localTasks, vikunjaTasks);
 
-		if (this.plugin.settings.debugging) console.log("Processor: Updating tasks in vikunja and vault");
+		if (this.plugin.settings.debugging) console.log("Processor: Updating tasks in Vikunja and vault");
 		await this.updateTasksInVault(localTasks, vikunjaTasks);
 		await this.updateTasksInVikunja(localTasks, vikunjaTasks);
-
-		// TODO Think about, how to delete tasks in vikunja and vault and how to check for this.
-		this.removeTasksInVikunjaIfNotInVault(localTasks, vikunjaTasks);
 
 		if (this.plugin.settings.debugging) console.log("Processor: End processing");
 	}
 
-	getTaskContent(task: PluginTask) {
+	async getTaskContent(task: PluginTask) {
 		let taskStatus = "- [ ] ";
 		if (task.task.done) {
 			taskStatus = "- [x] ";
 		}
 
-		const content: string = this.taskFormatter.format(task.task);
+		const content: string = await this.taskFormatter.format(task.task);
 		return `${taskStatus}${content} [vikunja_id:: ${task.task.id}]`;
 	}
 
 	async updateToVault(task: PluginTask) {
-		const newTask = this.getTaskContent(task);
+		const newTask = await this.getTaskContent(task);
 
 		await this.app.vault.process(task.file, data => {
 			const lines = data.split("\n");
@@ -89,7 +93,7 @@ class Processor {
 	}
 
 	async saveToVault(task: PluginTask) {
-		const newTask = this.getTaskContent(task);
+		const newTask = await this.getTaskContent(task);
 
 		await this.app.vault.process(task.file, data => {
 			if (this.plugin.settings.appendMode) {
@@ -114,6 +118,20 @@ class Processor {
 			default:
 				throw new Error("No valid TaskFormat selected");
 		}
+	}
+
+	private async createLabels(localTasks: PluginTask[]) {
+		return await Promise.all(localTasks
+			.filter(task => !!task.task.labels)
+			.map(async task => {
+					if (!task.task) throw new Error("Task labels are not defined");
+					if (!task.task.labels) return task;
+
+					task.task.labels = await this.plugin.labelsApi.getAndCreateLabels(task.task.labels);
+					if (this.plugin.settings.debugging) console.log("Processor: Preparing local tasks for vikunja update", task);
+					return task;
+				}
+			));
 	}
 
 	private getVaultSearcher() {
@@ -144,7 +162,7 @@ class Processor {
 	private async pushTasksFromVaultToVikunja(localTasks: PluginTask[], vikunjaTasks: ModelsTask[]) {
 		const tasksToPushToVikunja = localTasks.filter(task => !vikunjaTasks.find(vikunjaTask => vikunjaTask.id === task.task.id));
 		if (this.plugin.settings.debugging) console.log("Processor: Pushing tasks to vikunja", tasksToPushToVikunja);
-		const createdTasksInVikunja = await this.plugin.vikunjaTasksApi.createTasks(tasksToPushToVikunja.map(task => task.task));
+		const createdTasksInVikunja = await this.plugin.tasksApi.createTasks(tasksToPushToVikunja.map(task => task.task));
 		if (this.plugin.settings.debugging) console.log("Processor: Created tasks in vikunja", createdTasksInVikunja);
 
 		const tasksToUpdateInVault = localTasks.map(task => {
@@ -205,10 +223,14 @@ class Processor {
 	private async updateTasksInVikunja(localTasks: PluginTask[], vikunjaTasks: ModelsTask[]) {
 		if (this.plugin.settings.debugging) console.log("Processor: Update tasks in vikunja");
 
-		const tasksToUpdateInVikunja = localTasks.filter(task => vikunjaTasks.find(vikunjaTask => vikunjaTask.id === task.task.id && vikunjaTask.title !== task.task.title));
+		const tasksToUpdateInVikunja = localTasks.filter(task => vikunjaTasks.find(vikunjaTask => vikunjaTask.id === task.task.id && (
+			vikunjaTask.title !== task.task.title ||
+			vikunjaTask.done !== task.task.done ||
+			vikunjaTask.dueDate !== task.task.dueDate ||
+			vikunjaTask.labels !== task.task.labels
+		)));
 		if (this.plugin.settings.debugging) console.log("Processor: Updating tasks in vikunja", tasksToUpdateInVikunja);
-		const updatedTasksInVikunja = await this.plugin.vikunjaTasksApi.updateTasks(tasksToUpdateInVikunja.map(task => task.task));
-
+		const updatedTasksInVikunja = await this.plugin.tasksApi.updateTasks(tasksToUpdateInVikunja.map(task => task.task));
 
 		const tasksToUpdateInVault = localTasks.map(task => {
 			const updatedTask = updatedTasksInVikunja.find(vikunjaTask => task.task.id === vikunjaTask.id);
@@ -222,14 +244,16 @@ class Processor {
 		}
 	}
 
-	private async updateTasksInVault(localTasks: PluginTask[], vikunjaTasks: ModelsTask[]) {
+	private async updateTasksInVault(_localTasks: PluginTask[], _vikunjaTasks: ModelsTask[]) {
 		// TODO Update tasks in the vault, but beware: It needs a mechanism to check, if the task on vikunja was updated earlier then the task in the vault
 		// Maybe the ctime from obsidian and updated from vikunja can be used for this.
+		// in vikunja, there is an `updated` field in ModelsTask, which can be used for this.
 		if (this.plugin.settings.debugging) console.log("Processor: Update tasks in vault");
 		console.log("Processor: Method not implemented yet to update tasks vault")
 	}
 
 	private async removeTasksInVikunjaIfNotInVault(localTasks: PluginTask[], vikunjaTasks: ModelsTask[]) {
+		// Check placed here, so no wrong deletion happens
 		if (!this.plugin.settings.removeTasksIfInVaultNotFound) {
 			if (this.plugin.settings.debugging) console.log("Processor: Not deleting tasks in vikunja if ID not found in vault");
 			return;
@@ -241,8 +265,23 @@ class Processor {
 		if (this.plugin.settings.removeTasksOnlyInDefaultProject) {
 			tasksToDeleteInVikunja = tasksToDeleteInVikunja.filter(task => task.projectId === this.plugin.settings.defaultVikunjaProject);
 		}
-		await this.plugin.vikunjaTasksApi.deleteTasks(tasksToDeleteInVikunja);
+		await this.plugin.tasksApi.deleteTasks(tasksToDeleteInVikunja);
 
+	}
+
+	private async removeLabelsInVikunjaIfNotInVault(localTasks: PluginTask[], _vikunjaTasks: ModelsTask[]) {
+		if (!this.plugin.settings.removeLabelsIfInVaultNotUsed) {
+			if (this.plugin.settings.debugging) console.log("Processor: Not deleting labels in vikunja if ID not found in vault");
+			return;
+		}
+
+		for (const task of localTasks) {
+			if (!task.task.labels) continue;
+
+			const labels = task.task.labels;
+			if (this.plugin.settings.debugging) console.log("Processor: Found labels which are used in Vault", labels);
+			await this.plugin.labelsApi.deleteUnusedLabels(labels);
+		}
 	}
 }
 

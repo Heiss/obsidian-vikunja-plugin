@@ -19,6 +19,7 @@ export interface VikunjaPluginSettings {
 	useTagsInTextExceptions: string[],
 	backendToFindTasks: backendToFindTasks,
 	debugging: boolean,
+	removeLabelsIfInVaultNotUsed: boolean,
 	removeTasksIfInVaultNotFound: boolean,
 	removeTasksOnlyInDefaultProject: boolean,
 	enableCron: boolean,
@@ -39,6 +40,7 @@ export const DEFAULT_SETTINGS: VikunjaPluginSettings = {
 	useTagsInTextExceptions: [],
 	backendToFindTasks: backendToFindTasks.Dataview,
 	debugging: false,
+	removeLabelsIfInVaultNotUsed: false,
 	removeTasksIfInVaultNotFound: false,
 	removeTasksOnlyInDefaultProject: true,
 	enableCron: false,
@@ -79,7 +81,7 @@ export class SettingTab extends PluginSettingTab {
 
 					this.plugin.settings.vikunjaHost = value;
 					await this.plugin.saveSettings();
-					this.plugin.vikunjaTasksApi.init();
+					this.plugin.tasksApi.init();
 				}));
 
 		new Setting(containerEl)
@@ -90,7 +92,7 @@ export class SettingTab extends PluginSettingTab {
 				.onChange(async (value: string) => {
 					this.plugin.settings.vikunjaAccessToken = value;
 					await this.plugin.saveSettings();
-					this.plugin.vikunjaTasksApi.init();
+					this.plugin.tasksApi.init();
 					// TODO: Implement an event to reload API configurations
 				}));
 
@@ -99,18 +101,17 @@ export class SettingTab extends PluginSettingTab {
 			.addButton(button => button
 				.setButtonText("Test")
 				.onClick(async () => {
-					button.setButtonText("Testing...").setDisabled(true);
+					button.setDisabled(true);
 					try {
-						const tasks = await this.plugin.vikunjaTasksApi.getAllTasks();
+						const tasks = await this.plugin.tasksApi.getAllTasks();
 						if (this.plugin.settings.debugging) {
 							console.log(`SettingsTab: Got tasks:`, tasks);
 						}
-						button.setButtonText("OK! ✅");
-						this.loadApi().then(_r => {
-						});
+						new Notice("Connection OK! ✅");
+						await this.loadApi();
 					} catch (e) {
 						console.error(e);
-						button.setButtonText("Error! ❌");
+						new Notice("Connection Error! ❌");
 					}
 					// Reset text
 					setInterval(() => {
@@ -130,6 +131,18 @@ export class SettingTab extends PluginSettingTab {
 					this.plugin.settings.debugging = value;
 					await this.plugin.saveSettings();
 				}));
+
+		new Setting(containerEl)
+			.setName("Check for dependencies")
+			.setDesc("Check if all dependencies are installed and if it can works correctly with your current settings to communicate with Vikunja. If there is only one Notice, everything is fine. If there are more, please enable debugging and check the console for more information.")
+			.addButton(button => button
+				.setButtonText("Check")
+				.onClick(async () => {
+					this.plugin.checkDependencies();
+					new Notice("Check for dependencies done.");
+				})
+			);
+
 
 		const pluginFormatDesc = document.createDocumentFragment();
 		pluginFormatDesc.append("Select the format of the plugin you are using. This will change the way the plugin interacts with your vault, because it tries to get all information with the given format. Currently supported formats: ",
@@ -183,7 +196,7 @@ export class SettingTab extends PluginSettingTab {
 
 		new Setting(containerEl)
 			.setName("Enable Cron")
-			.setDesc("Enable the cron job to sync tasks automatically.")
+			.setDesc("Enable the cron job to sync tasks automatically. If disabled, you have to trigger the sync manually via command.")
 			.addToggle(toggle => toggle
 				.setValue(this.plugin.settings.enableCron)
 				.onChange(async (value: boolean) => {
@@ -346,6 +359,18 @@ export class SettingTab extends PluginSettingTab {
 						await this.plugin.saveSettings();
 					}));
 		}
+
+		new Setting(containerEl)
+			.setName("Remove labels if not used in vault")
+			.setDesc("If labels not found in the vault, they will be deleted in Vikunja. Mostly, because you delete them. Very helpful, if you only create labels through Obsidian.")
+			.addToggle(toggle =>
+				toggle
+					.setValue(this.plugin.settings.removeLabelsIfInVaultNotUsed)
+					.onChange(async (value: boolean) => {
+						this.plugin.settings.removeLabelsIfInVaultNotUsed = value;
+						await this.plugin.saveSettings();
+						this.display();
+					}));
 
 		new Setting(containerEl)
 			.setName("Remove tasks if not found in vault")
