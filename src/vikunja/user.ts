@@ -1,10 +1,6 @@
 import {App} from "obsidian";
 import VikunjaPlugin from "../../main";
-import {
-	Configuration,
-	UserApi,
-	UserUser
-} from "../../vikunja_sdk";
+import {Configuration, UserApi, UserUser} from "../../vikunja_sdk";
 
 class User {
 	plugin: VikunjaPlugin;
@@ -17,7 +13,7 @@ class User {
 
 	init() {
 		const configuration = new Configuration({
-			basePath: this.plugin.settings.vikunjaHost,
+			basePath: this.plugin.settings.vikunjaHost + "/api/v1",
 			apiKey: "Bearer " + this.plugin.settings.vikunjaAccessToken,
 		});
 		this.userApi = new UserApi(configuration);

@@ -12,6 +12,15 @@ interface TaskParser {
 }
 
 interface TaskFormatter {
+	/*
+	 * Formats a task into a string.
+	 * Throws an error if the task is not valid, e.g. missing required title
+	 *
+	 * The returned string have to follow the following format:
+	 * - [<done status>] <title of the task> <tags of the task> <due date> <done date> <link to corresponding vikunja task> [vikunja_id:: <id of the vikunja task>]
+	 *
+	 * For example, take a look at `EmojiTaskFormatter.format` in emojiTaskFormat.ts
+	 */
 	format(task: ModelsTask): Promise<string>;
 }
 

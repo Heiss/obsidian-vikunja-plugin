@@ -28,6 +28,7 @@ export default class VikunjaPlugin extends Plugin {
 		this.labelsApi = new Label(this.app, this);
 
 		this.setupObsidian();
+		await this.processor.updateTasksOnStartup();
 	}
 
 	onunload() {
@@ -42,16 +43,64 @@ export default class VikunjaPlugin extends Plugin {
 		await this.saveData(this.settings);
 	}
 
-	private setupObsidian() {
-		this.processor = new Processor(this.app, this);
+	checkDependencies() {
+		let foundProblem = false;
+		if (this.settings.chooseOutputFile === chooseOutputFile.DailyNote && appHasDailyNotesPluginLoaded()) {
+			new Notice("Vikunja Plugin: Daily notes core plugin is not loaded. So we cannot create daily note. Please install daily notes core plugin to use Daily Note.")
+			if (this.settings.debugging) console.log("Vikunja Plugin: Daily notes core plugin is not loaded. So we cannot create daily note. Please install daily notes core plugin to use Daily Note.");
+			foundProblem = true;
+		}
 
+		if (this.settings.chooseOutputFile === chooseOutputFile.File) {
+			if (this.settings.chosenOutputFile === "") {
+				new Notice("Vikunja Plugin: Output file is not selected. Please select a file to use File as output.");
+				if (this.settings.debugging) console.log("Vikunja Plugin: Output file is not selected. Please select a file to use File as output.");
+				foundProblem = true;
+			}
+			if (this.app.vault.getAbstractFileByPath(this.settings.chosenOutputFile) === null) {
+				new Notice("Vikunja Plugin: Output file not found. Please select a valid file to use File as output.");
+				if (this.settings.debugging) console.log("Vikunja Plugin: Output file not found. Please select a valid file to use File as output.");
+				foundProblem = true;
+			}
+		}
+
+		if (this.settings.backendToFindTasks === backendToFindTasks.Dataview && getAPI(this.app) === undefined) {
+			new Notice("Vikunja Plugin: Obsidian Dataview plugin is not loaded. Please install Obsidian Dataview plugin to use Dataview.");
+			if (this.settings.debugging) console.log("Vikunja Plugin: Obsidian Dataview plugin is not loaded. Please install Obsidian Dataview plugin to use Dataview.");
+			foundProblem = true;
+		}
+
+		if (foundProblem) {
+			new Notice(
+				"Vikunja Plugin: Found problems. Please fix them in settings before using the plugin."
+			);
+		}
+
+		this.foundProblem = foundProblem;
+	}
+
+	async checkLastLineForUpdate() {
+		if (this.settings.debugging) console.log("Checking for task update");
+		const updateTask = await this.processor.checkUpdateInLineAvailable()
+		if (!!updateTask) {
+			await this.tasksApi.updateTask(updateTask.task);
+		} else {
+			if (this.settings.debugging) console.log("No task to update found");
+		}
+	}
+
+	setupObsidian() {
+		this.processor = new Processor(this.app, this);
 		// This creates an icon in the left ribbon.
-		const ribbonIconEl = this.addRibbonIcon('dice', 'Sample Plugin', (_evt: MouseEvent) => {
+		const ribbonIconEl = this.addRibbonIcon('refresh-cw', 'Vikunja: Trigger sync', async (_evt: MouseEvent) => {
 			// Called when the user clicks the icon.
-			new Notice('This is a notice!');
+			new Notice('Start syncing with Vikunja');
+			await this.processor.exec();
+			new Notice('Syncing with Vikunja finished');
 		});
 		// Perform additional things with the ribbon
 		ribbonIconEl.addClass('my-plugin-ribbon-class');
+
 
 		// This adds a status bar item to the bottom of the app. Does not work on mobile apps.
 		const statusBarItemEl = this.addStatusBarItem();
@@ -78,11 +127,9 @@ export default class VikunjaPlugin extends Plugin {
 		// This adds a settings tab so the user can configure various aspects of the plugin
 		this.addSettingTab(new SettingTab(this.app, this));
 
-		// If the plugin hooks up any global DOM events (on parts of the app that doesn't belong to this plugin)
-		// Using this function will automatically remove the event listener when this plugin is disabled.
-		this.registerDomEvent(document, 'click', (evt: MouseEvent) => {
-			console.log('click', evt);
-		});
+		this.registerDomEvent(document, 'keyup', this.handleUpDownEvent.bind(this));
+		this.registerDomEvent(document, 'click', this.handleClickEvent.bind(this));
+		this.registerEvent(this.app.workspace.on('editor-change', this.handleEditorChange.bind(this)));
 
 		// When registering intervals, this function will automatically clear the interval when the plugin is disabled.
 		this.registerInterval(window
@@ -96,36 +143,42 @@ export default class VikunjaPlugin extends Plugin {
 		);
 	}
 
-	checkDependencies() {
-		if (this.settings.chooseOutputFile === chooseOutputFile.DailyNote && appHasDailyNotesPluginLoaded()) {
-			new Notice("Vikunja Plugin: Daily notes core plugin is not loaded. So we cannot create daily note. Please install daily notes core plugin to use Daily Note.")
-			if (this.settings.debugging) console.log("Vikunja Plugin: Daily notes core plugin is not loaded. So we cannot create daily note. Please install daily notes core plugin to use Daily Note.");
-			this.foundProblem = true;
-		}
+	private async handleEditorChange() {
+		if (this.settings.debugging) console.log("Editor changed");
+		return;
+		//await this.checkLastLineForUpdate();
+	}
 
-		if (this.settings.chooseOutputFile === chooseOutputFile.File) {
-			if (this.settings.chosenOutputFile === "") {
-				new Notice("Vikunja Plugin: Output file is not selected. Please select a file to use File as output.");
-				if (this.settings.debugging) console.log("Vikunja Plugin: Output file is not selected. Please select a file to use File as output.");
-				this.foundProblem = true;
+	private async handleUpDownEvent(evt: KeyboardEvent) {
+		if (evt.key === 'ArrowUp' || evt.key === 'ArrowDown' || evt.key === 'PageUp' || evt.key === 'PageDown') {
+			await this.checkLastLineForUpdate();
+		}
+	}
+
+	private async handleClickEvent(evt: MouseEvent) {
+		const target = evt.target as HTMLInputElement;
+		if (this.app.workspace.activeEditor?.editor?.hasFocus()) {
+			await this.checkLastLineForUpdate();
+		}
+		if (target.type === "checkbox") {
+			if (this.settings.debugging) console.log("Checkbox clicked");
+			const taskElement = target.closest("div");
+			if (!taskElement) {
+				if (this.settings.debugging) console.log("No task element found for checkbox");
+				return;
 			}
-			if (this.app.vault.getAbstractFileByPath(this.settings.chosenOutputFile) === null) {
-				new Notice("Vikunja Plugin: Output file not found. Please select a valid file to use File as output.");
-				if (this.settings.debugging) console.log("Vikunja Plugin: Output file not found. Please select a valid file to use File as output.");
-				this.foundProblem = true;
+			if (this.settings.debugging) console.log("Task element found for checkbox", taskElement.textContent);
+			const regex = /\svikunja_id(\d+)\s*/; // this ugly stuff is needed, because textContent remove all markdown related stuff
+			const match = taskElement.textContent?.match(regex) || false;
+			if (match) {
+				const taskId = parseInt(match[1]);
+				if (this.settings.debugging) console.log("Checkbox clicked for task", taskId);
+				const task = await this.tasksApi.getTaskById(taskId);
+				task.done = target.checked;
+				await this.tasksApi.updateTask(task);
+			} else {
+				if (this.settings.debugging) console.log("No task id found for checkbox");
 			}
-		}
-
-		if (this.settings.backendToFindTasks === backendToFindTasks.Dataview && getAPI(this.app) === undefined) {
-			new Notice("Vikunja Plugin: Obsidian Dataview plugin is not loaded. Please install Obsidian Dataview plugin to use Dataview.");
-			if (this.settings.debugging) console.log("Vikunja Plugin: Obsidian Dataview plugin is not loaded. Please install Obsidian Dataview plugin to use Dataview.");
-			this.foundProblem = true;
-		}
-
-		if (this.foundProblem) {
-			new Notice(
-				"Vikunja Plugin: Found problems. Please fix them in settings before using the plugin."
-			);
 		}
 	}
 }

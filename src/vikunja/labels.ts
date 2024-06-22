@@ -20,7 +20,7 @@ class Label {
 
 	init() {
 		const configuration = new Configuration({
-			basePath: this.plugin.settings.vikunjaHost,
+			basePath: this.plugin.settings.vikunjaHost + "/api/v1",
 			apiKey: "Bearer " + this.plugin.settings.vikunjaAccessToken,
 		});
 		this.labelsApi = new LabelsApi(configuration);

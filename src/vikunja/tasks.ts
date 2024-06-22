@@ -6,6 +6,7 @@ import {
 	ProjectsIdTasksPutRequest,
 	TaskApi,
 	TasksIdDeleteRequest,
+	TasksIdGetRequest,
 	TasksIdPostRequest,
 	TasksTaskLabelsLabelDeleteRequest,
 	TasksTaskLabelsPutRequest
@@ -22,7 +23,7 @@ class Tasks {
 
 	init() {
 		const configuration = new Configuration({
-			basePath: this.plugin.settings.vikunjaHost,
+			basePath: this.plugin.settings.vikunjaHost + "/api/v1",
 			apiKey: "Bearer " + this.plugin.settings.vikunjaAccessToken,
 		});
 		this.tasksApi = new TaskApi(configuration);
@@ -34,6 +35,7 @@ class Tasks {
 
 	async updateTask(task: ModelsTask): Promise<ModelsTask> {
 		if (!task.id) throw new Error("TasksApi: Task id is not defined");
+		if (this.plugin.settings.debugging) console.log("TasksApi: Updating task", task.id, task);
 		const param: TasksIdPostRequest = {id: task.id, task: task};
 		await this.updateLabelsInVikunja(task);
 		return this.tasksApi.tasksIdPost(param);
@@ -46,6 +48,13 @@ class Tasks {
 	async createTask(task: ModelsTask): Promise<ModelsTask> {
 		if (this.plugin.settings.debugging) console.log("TasksApi: Creating task", task);
 		if (!task.projectId) throw new Error("TasksApi: Task projectId is not defined");
+
+		// TODO add link to vault file in Vikunja task
+		//  let url = encodeURI(`obsidian://open?vault=${this.app.vault.getName()}&file=${filepath}`)
+		//  description =`[${filepath}](${url})`;
+		//  filepath could be an issue, because this information is dropped right before calling this method right now
+		//  Another problem is, that it cannot track moved tasks in the vault
+
 		const param: ProjectsIdTasksPutRequest = {
 			id: task.projectId,
 			task: task
@@ -90,7 +99,11 @@ class Tasks {
 				task: task.id
 			}
 
-			await this.plugin.labelsApi.labelsApi.tasksTaskLabelsPut(param);
+			try {
+				await this.plugin.labelsApi.labelsApi.tasksTaskLabelsPut(param);
+			} catch (error) {
+				console.error("Error adding label to task. Mostly it has already this label assigned.", error);
+			}
 		}
 	}
 
@@ -113,6 +126,11 @@ class Tasks {
 
 			await this.plugin.labelsApi.labelsApi.tasksTaskLabelsLabelDelete(param);
 		}
+	}
+
+	async getTaskById(taskId: number) {
+		const param: TasksIdGetRequest = {id: taskId};
+		return this.tasksApi.tasksIdGet(param);
 	}
 
 	private async updateLabelsInVikunja(task: ModelsTask) {

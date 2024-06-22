@@ -1,5 +1,5 @@
 import Plugin from "../../main";
-import {App, moment, Notice, TFile} from "obsidian";
+import {App, MarkdownView, moment, Notice, TFile} from "obsidian";
 import {backendToFindTasks, chooseOutputFile, supportedTasksPluginsFormat} from "../enums";
 import {PluginTask, VaultSearcher} from "../vaultSearcher/vaultSearcher";
 import {DataviewSearcher} from "../vaultSearcher/dataviewSearcher";
@@ -13,12 +13,19 @@ import {
 	getDailyNote
 } from "obsidian-daily-notes-interface";
 
+interface UpdatedSplit {
+	tasksToUpdateInVault: PluginTask[];
+	tasksToUpdateInVikunja: PluginTask[];
+}
+
 class Processor {
 	app: App;
 	plugin: Plugin;
 	vaultSearcher: VaultSearcher;
 	taskParser: TaskParser;
 	taskFormatter: TaskFormatter;
+	private alreadyUpdateTasksOnStartup = false;
+	private lastLineChecked: Map<string, number>;
 
 	constructor(app: App, plugin: Plugin) {
 		this.app = app;
@@ -27,6 +34,7 @@ class Processor {
 		this.vaultSearcher = this.getVaultSearcher();
 		this.taskParser = this.getTaskParser();
 		this.taskFormatter = this.getTaskFormatter();
+		this.lastLineChecked = new Map<string, number>();
 	}
 
 
@@ -53,33 +61,34 @@ class Processor {
 		const vikunjaTasks = await this.plugin.tasksApi.getAllTasks();
 		if (this.plugin.settings.debugging) console.log("Processor: Got tasks from Vikunja", vikunjaTasks);
 
+		const {
+			tasksToUpdateInVault,
+			tasksToUpdateInVikunja
+		} = this.splitTaskAfterUpdatedStatus(localTasks, vikunjaTasks);
+		if (this.plugin.settings.debugging) console.log("Processor: Split tasks after updated status, outstanding updates in vault", tasksToUpdateInVault, "outstanding updates in vikunja", tasksToUpdateInVikunja);
+
 		// Processing steps
-		if (this.plugin.settings.debugging) console.log("Processor: Deleting tasks in Vikunja");
+		if (this.plugin.settings.debugging) console.log("Processor: Deleting tasks and labels in Vikunja");
 		await this.removeTasksInVikunjaIfNotInVault(localTasks, vikunjaTasks);
 		await this.removeLabelsInVikunjaIfNotInVault(localTasks, vikunjaTasks);
 
 		if (this.plugin.settings.debugging) console.log("Processor: Creating labels in Vikunja", localTasks);
 		localTasks = await this.createLabels(localTasks);
 
-		if (this.plugin.settings.debugging) console.log("Processor: Creating tasks in Vikunja and vault");
+		if (this.plugin.settings.debugging) console.log("Processor: Creating tasks in Vikunja and vault", localTasks, vikunjaTasks);
 		await this.pullTasksFromVikunjaToVault(localTasks, vikunjaTasks);
 		await this.pushTasksFromVaultToVikunja(localTasks, vikunjaTasks);
 
-		if (this.plugin.settings.debugging) console.log("Processor: Updating tasks in Vikunja and vault");
-		await this.updateTasksInVault(localTasks, vikunjaTasks);
-		await this.updateTasksInVikunja(localTasks, vikunjaTasks);
+		if (this.plugin.settings.debugging) console.log("Processor: Updating tasks in vault and Vikunja");
+		await this.updateTasksInVikunja(tasksToUpdateInVikunja);
+		await this.updateTasksInVault(tasksToUpdateInVault);
 
 		if (this.plugin.settings.debugging) console.log("Processor: End processing");
 	}
 
 	async getTaskContent(task: PluginTask) {
-		let taskStatus = "- [ ] ";
-		if (task.task.done) {
-			taskStatus = "- [x] ";
-		}
-
 		const content: string = await this.taskFormatter.format(task.task);
-		return `${taskStatus}${content} [vikunja_id:: ${task.task.id}]`;
+		return `${content} `;
 	}
 
 	async updateToVault(task: PluginTask) {
@@ -120,15 +129,107 @@ class Processor {
 		}
 	}
 
+	/*
+	 * Split tasks into two groups:
+	 * - tasksToUpdateInVault: Tasks which have updates in Vikunja
+	 * - tasksToUpdateInVikunja: Tasks which have updates in the vault
+	 *
+	 * tasksToUpdateInVault has already all informations needed for vault update.
+	 *
+	 * This method should only be triggered on startup of obsidian and only once. After this, we cannot guerantee that the updated information of files are in sync.
+	 */
+	async updateTasksOnStartup() {
+		if (this.plugin.settings.debugging) console.log("Processor: Update tasks in vault and vikunja");
+		if (this.alreadyUpdateTasksOnStartup) throw new Error("Update tasks on startup can only be called once");
+		if (this.plugin.foundProblem) {
+			if (this.plugin.settings.debugging) console.log("Processor: Found problems in plugin. Have to be fixed first. Syncing is stopped.");
+			return;
+		}
+		if (!this.plugin.settings.updateOnStartup) {
+			if (this.plugin.settings.debugging) console.log("Processor: Update on startup is disabled");
+			return;
+		}
+
+		const localTasks = await this.vaultSearcher.getTasks(this.taskParser);
+		const vikunjaTasks = await this.plugin.tasksApi.getAllTasks();
+
+		const {
+			tasksToUpdateInVault,
+			tasksToUpdateInVikunja
+		} = this.splitTaskAfterUpdatedStatus(localTasks, vikunjaTasks);
+
+
+		await this.updateTasksInVault(tasksToUpdateInVault);
+		await this.updateTasksInVikunja(tasksToUpdateInVikunja);
+
+		this.alreadyUpdateTasksOnStartup = true;
+	}
+
+	/*
+	 * Check if an update is available in the line, where the cursor is currently placed, which should be pushed to Vikunja
+	 */
+	async checkUpdateInLineAvailable(): Promise<PluginTask | undefined> {
+		if (!this.plugin.settings.updateOnCursorMovement) {
+			if (this.plugin.settings.debugging) console.log("Processor: Update on cursor movement is disabled");
+			return;
+		}
+
+		const view = this.app.workspace.getActiveViewOfType(MarkdownView)
+		if (!view) {
+			if (this.plugin.settings.debugging) console.log("Processor: No markdown view found");
+			return;
+		}
+
+		const cursor = view.app.workspace.getActiveViewOfType(MarkdownView)?.editor.getCursor()
+
+		const currentFilename = view.app.workspace.getActiveViewOfType(MarkdownView)?.app.workspace.activeEditor?.file?.name;
+		if (!currentFilename) {
+
+			if (this.plugin.settings.debugging) console.log("Processor: No filename found");
+			return;
+		}
+
+		const currentLine = cursor?.line
+		if (!currentLine) {
+			if (this.plugin.settings.debugging) console.log("Processor: No line found");
+			return;
+		}
+
+		const file = view.file;
+		if (!file) {
+			if (this.plugin.settings.debugging) console.log("Processor: No file found");
+			return;
+		}
+
+		const lastLine = this.lastLineChecked.get(currentFilename);
+		let pluginTask = undefined;
+		if (!!lastLine) {
+			const lastLineText = view.editor.getLine(lastLine);
+			if (this.plugin.settings.debugging) console.log("Processor: Last line,", lastLine, "Last line text", lastLineText);
+			try {
+				const parsedTask = await this.taskParser.parse(lastLineText);
+				pluginTask = {
+					file: file,
+					lineno: lastLine,
+					task: parsedTask
+				};
+			} catch (e) {
+				if (this.plugin.settings.debugging) console.log("Processor: Error while parsing task", e);
+			}
+		}
+
+		this.lastLineChecked.set(currentFilename, currentLine);
+		return pluginTask;
+	}
+
 	private async createLabels(localTasks: PluginTask[]) {
 		return await Promise.all(localTasks
-			.filter(task => !!task.task.labels)
 			.map(async task => {
-					if (!task.task) throw new Error("Task labels are not defined");
+					if (!task.task) throw new Error("Task is not defined");
 					if (!task.task.labels) return task;
 
 					task.task.labels = await this.plugin.labelsApi.getAndCreateLabels(task.task.labels);
-					if (this.plugin.settings.debugging) console.log("Processor: Preparing local tasks for vikunja update", task);
+					if (this.plugin.settings.debugging) console.log("Processor: Preparing labels for local tasks for vikunja update", task);
 					return task;
 				}
 			));
@@ -178,7 +279,7 @@ class Processor {
 	}
 
 	private async pullTasksFromVikunjaToVault(localTasks: PluginTask[], vikunjaTasks: ModelsTask[]) {
-		if (this.plugin.settings.debugging) console.log("Processor: Pulling tasks from vikunja to vault");
+		if (this.plugin.settings.debugging) console.log("Processor: Pulling tasks from vikunja to vault, vault tasks", localTasks, "vikunja tasks", vikunjaTasks);
 
 		const tasksToPushToVault = vikunjaTasks.filter(task => !localTasks.find(vaultTask => vaultTask.task.id === task.id));
 		if (this.plugin.settings.debugging) console.log("Processor: Pushing tasks to vault", tasksToPushToVault);
@@ -220,36 +321,20 @@ class Processor {
 		}
 	}
 
-	private async updateTasksInVikunja(localTasks: PluginTask[], vikunjaTasks: ModelsTask[]) {
+	private async updateTasksInVikunja(updateTasks: PluginTask[]) {
 		if (this.plugin.settings.debugging) console.log("Processor: Update tasks in vikunja");
 
-		const tasksToUpdateInVikunja = localTasks.filter(task => vikunjaTasks.find(vikunjaTask => vikunjaTask.id === task.task.id && (
-			vikunjaTask.title !== task.task.title ||
-			vikunjaTask.done !== task.task.done ||
-			vikunjaTask.dueDate !== task.task.dueDate ||
-			vikunjaTask.labels !== task.task.labels
-		)));
-		if (this.plugin.settings.debugging) console.log("Processor: Updating tasks in vikunja", tasksToUpdateInVikunja);
-		const updatedTasksInVikunja = await this.plugin.tasksApi.updateTasks(tasksToUpdateInVikunja.map(task => task.task));
-
-		const tasksToUpdateInVault = localTasks.map(task => {
-			const updatedTask = updatedTasksInVikunja.find(vikunjaTask => task.task.id === vikunjaTask.id);
-			if (updatedTask) {
-				task.task = updatedTask;
-			}
-			return task;
-		});
-		for (const task of tasksToUpdateInVault) {
-			await this.updateToVault(task);
+		for (const task of updateTasks) {
+			await this.plugin.tasksApi.updateTask(task.task);
 		}
 	}
 
-	private async updateTasksInVault(_localTasks: PluginTask[], _vikunjaTasks: ModelsTask[]) {
-		// TODO Update tasks in the vault, but beware: It needs a mechanism to check, if the task on vikunja was updated earlier then the task in the vault
-		// Maybe the ctime from obsidian and updated from vikunja can be used for this.
-		// in vikunja, there is an `updated` field in ModelsTask, which can be used for this.
+	private async updateTasksInVault(updateTasks: PluginTask[]) {
 		if (this.plugin.settings.debugging) console.log("Processor: Update tasks in vault");
-		console.log("Processor: Method not implemented yet to update tasks vault")
+
+		for (const task of updateTasks) {
+			await this.updateToVault(task);
+		}
 	}
 
 	private async removeTasksInVikunjaIfNotInVault(localTasks: PluginTask[], vikunjaTasks: ModelsTask[]) {
@@ -282,6 +367,44 @@ class Processor {
 			if (this.plugin.settings.debugging) console.log("Processor: Found labels which are used in Vault", labels);
 			await this.plugin.labelsApi.deleteUnusedLabels(labels);
 		}
+	}
+
+	/*
+	 * Split tasks into two groups:
+	 * - tasksToUpdateInVault: Tasks which have updates in Vikunja
+	 * - tasksToUpdateInVikunja: Tasks which have updates in the vault
+	 *
+	 * tasksToUpdateInVault has already all informations needed for vault update.
+	 */
+	private splitTaskAfterUpdatedStatus(localTasks: PluginTask[], vikunjaTasks: ModelsTask[]): UpdatedSplit {
+		if (this.plugin.settings.debugging) console.log("Processor: Find tasks which have updates on the other platform");
+
+		let tasksToUpdateInVault: PluginTask[] = [];
+		let tasksToUpdateInVikunja: PluginTask[] = [];
+		for (const task of localTasks) {
+			const vikunjaTask = vikunjaTasks.find(vikunjaTask => vikunjaTask.id === task.task.id);
+			if (!vikunjaTask) continue;
+			if (!vikunjaTask || !vikunjaTask.updated || !task.task.updated) {
+				if (this.plugin.settings.debugging) console.log("Task updated field is not defined", task, vikunjaTask);
+				throw new Error("Task updated field is not defined");
+			}
+
+			let comparison;
+			if (vikunjaTask.updated > task.task.updated) {
+				task.task = vikunjaTask;
+				tasksToUpdateInVault.push(task);
+				comparison = "Vikunja";
+			} else {
+				tasksToUpdateInVikunja.push(task);
+				comparison = "Vault";
+			}
+			if (this.plugin.settings.debugging) console.log(`Processor: Task updated will be updated in ${comparison}, updated on vikunja`, vikunjaTask.updated, " updated on vault", task.task.updated);
+		}
+
+		return {
+			tasksToUpdateInVault: tasksToUpdateInVault,
+			tasksToUpdateInVikunja: tasksToUpdateInVikunja
+		};
 	}
 }
 

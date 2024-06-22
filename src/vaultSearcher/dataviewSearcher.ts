@@ -1,4 +1,4 @@
-import {App, TFile} from "obsidian";
+import {App, moment, TFile} from "obsidian";
 import VikunjaPlugin from "../../main";
 import {DataviewApi, getAPI} from "obsidian-dataview";
 import {PluginTask, VaultSearcher} from "./vaultSearcher";
@@ -29,12 +29,13 @@ export class DataviewSearcher implements VaultSearcher {
 			}
 
 			const parsed = await parser.parse(`${taskBracket} ${task.text}`)
-
-			const file = this.app.vault.getAbstractFileByPath(task.path);
+			const file = this.app.vault.getFileByPath(task.path);
 			if (!file) {
 				console.error("DataviewSearcher: Could not find file for task", task);
 				continue;
 			}
+			parsed.updated = moment(file.stat.mtime).format("YYYY-MM-DDTHH:mm:ss[Z]");
+
 			const vaultParsed: PluginTask = {
 				file: file as TFile,
 				lineno: task.line,

@@ -14,16 +14,16 @@ const REGEX = {
 	VIKUNJA_ID: /\[vikunja_id::\s*\d+\]/,
 	VIKUNJA_ID_NUM: /\[vikunja_id::\s*(.*?)\]/,
 	VIKUNJA_LINK: /\[link\]\(.*?\)/,
-	DUE_DATE_WITH_EMOJ: new RegExp(`(${keywords.DUE_DATE})\\s?\\d{4}-\\d{2}-\\d{2}(T\\d{2}:\\d{2}Z)?`),
-	DUE_DATE: new RegExp(`(?:${keywords.DUE_DATE})\\s?(\\d{4}-\\d{2}-\\d{2})(T\\d{2}:\\d{2}Z)?`),
-	DONE_DATE: new RegExp(`(?:${keywords.DONE_DATE})\\s?(\\d{4}-\\d{2}-\\d{2})(T\\d{2}:\\d{2}Z)?`),
+	DUE_DATE_WITH_EMOJ: new RegExp(`(${keywords.DUE_DATE})\\s?\\d{4}-\\d{2}-\\d{2}(T\\d{2}:\\d{2}:\\d{2}Z)?`),
+	DUE_DATE: new RegExp(`(?:${keywords.DUE_DATE})\\s?(\\d{4}-\\d{2}-\\d{2})(T\\d{2}:\\d{2}:\\d{2}Z)?`),
+	DONE_DATE: new RegExp(`(?:${keywords.DONE_DATE})\\s?(\\d{4}-\\d{2}-\\d{2})(T\\d{2}:\\d{2}:\\d{2}Z)?`),
 	PROJECT_NAME: /\[project::\s*(.*?)\]/,
 	TASK_CONTENT: {
 		REMOVE_PRIORITY: /\s!!([1-4])\s/,
 		REMOVE_TAGS: /(^|\s)(#[a-zA-Z\d\u4e00-\u9fa5-]+)/g,
 		REMOVE_SPACE: /^\s+|\s+$/g,
-		REMOVE_DATE: new RegExp(`(${keywords.DUE_DATE})\\s?\\d{4}-\\d{2}-\\d{2}(T\\d{2}:\\d{2}Z)?`),
-		REMOVE_DONE_DATE: new RegExp(`(${keywords.DONE_DATE})\\s?\\d{4}-\\d{2}-\\d{2}(T\\d{2}:\\d{2}Z)?`),
+		REMOVE_DATE: new RegExp(`(${keywords.DUE_DATE})\\s?\\d{4}-\\d{2}-\\d{2}(T\\d{2}:\\d{2}:\\d{2}Z)?`),
+		REMOVE_DONE_DATE: new RegExp(`(${keywords.DONE_DATE})\\s?\\d{4}-\\d{2}-\\d{2}(T\\d{2}:\\d{2}:\\d{2}Z)?`),
 		REMOVE_INLINE_METADATA: /%%\[\w+::\s*\w+\]%%/,
 		REMOVE_CHECKBOX: /^(-|\*)\s+\[(x|X| )\]\s/,
 		REMOVE_CHECKBOX_WITH_INDENTATION: /^([ \t]*)?(-|\*)\s+\[(x|X| )\]\s/,
@@ -85,6 +85,7 @@ class EmojiTaskParser implements TaskParser {
 			if (this.plugin.settings.debugging) console.log("EmojiTaskParser: No tags found in line text", lineText);
 			return [];
 		}
+		if (this.plugin.settings.debugging) console.log("EmojiTaskParser: Tags found in line text", tags);
 
 		let labels: ModelsLabel[] = [];
 		for (const tag of tags
@@ -101,20 +102,20 @@ class EmojiTaskParser implements TaskParser {
 
 
 	getTaskContentFromLineText(lineText: string): string {
-		let TaskContent: string = lineText.replace(REGEX.TASK_CONTENT.REMOVE_INLINE_METADATA, "")
+		let taskContent: string = lineText.replace(REGEX.TASK_CONTENT.REMOVE_INLINE_METADATA, "")
 			.replace(REGEX.TASK_CONTENT.REMOVE_VIKUNJA_LINK, "")
 			.replace(REGEX.TASK_CONTENT.REMOVE_PRIORITY, " ")
 
 		// remove tags with text only if enabled in settings
 		if (!this.plugin.settings.useTagsInText) {
-			TaskContent = TaskContent.replace(REGEX.TASK_CONTENT.REMOVE_TAGS, "")
+			taskContent = taskContent.replace(REGEX.TASK_CONTENT.REMOVE_TAGS, "")
 		} else {
 			this.plugin.settings.useTagsInTextExceptions.forEach(exceptTag => {
-				TaskContent = TaskContent.replaceAll(exceptTag, "")
+				taskContent = taskContent.replaceAll(exceptTag, "")
 			})
-			TaskContent = TaskContent.replaceAll("#", "")
+			//taskContent = taskContent.replaceAll("#", "")
 		}
-		TaskContent = TaskContent.replace(REGEX.TASK_CONTENT.REMOVE_DATE, "")
+		taskContent = taskContent.replace(REGEX.TASK_CONTENT.REMOVE_DATE, "")
 			.replace(REGEX.TASK_CONTENT.REMOVE_DONE_DATE, "")
 			.replace(REGEX.TASK_CONTENT.REMOVE_CHECKBOX, "")
 			.replace(REGEX.TASK_CONTENT.REMOVE_CHECKBOX_WITH_INDENTATION, "")
@@ -122,9 +123,9 @@ class EmojiTaskParser implements TaskParser {
 			.replace(REGEX.VIKUNJA_ID_NUM, "").trim();
 		// FIXME VIKUNJA_ID should be removed from the task content and not be in the title... but it is there.
 
-		if (this.plugin.settings.debugging) console.log("EmojiTaskParser: Task content parsed", TaskContent);
+		if (this.plugin.settings.debugging) console.log("EmojiTaskParser: Task content parsed", taskContent);
 
-		return (TaskContent)
+		return (taskContent)
 	}
 
 	/*
@@ -183,30 +184,41 @@ class EmojiTaskFormatter implements TaskFormatter {
 	}
 
 	async format(task: ModelsTask): Promise<string> {
-		let result = "";
+		if (!task.title) throw new Error("EmojiTaskFormatter: Task title is required");
 
-		result += task.title;
+		let additionalContent = [task.title];
 
 		if (task.dueDate && task.dueDate !== "0001-01-01T00:00:00Z") {
 			const dueDate = task.dueDate.split("T")[0];
-			result += ` 📅 ${dueDate}`;
-		}
-
-		if (task.doneAt && task.doneAt !== "0001-01-01T00:00:00Z") {
-			const doneDate = task.doneAt.split("T")[0];
-			result += ` ✅ ${doneDate}`;
+			const dueDateText = `📅 ${dueDate}`;
+			additionalContent.push(dueDateText);
 		}
 
 		if (!this.plugin.settings.useTagsInText && task.labels) {
 			task.labels.forEach(label => {
-				result += ` #${label.title}`;
+				const taskTagsText = `#${label.title}`;
+				additionalContent.push(taskTagsText);
 			});
 		}
 
+		const vikunjaLink = `${this.plugin.settings.vikunjaHost}/tasks/${task.id}`
+		const link = `[link](${vikunjaLink})`
+		additionalContent.push(link);
+		additionalContent.push(`[vikunja_id:: ${task.id}]`);
+
+		if (task.doneAt && task.doneAt !== "0001-01-01T00:00:00Z") {
+			const doneDate = task.doneAt.split("T")[0];
+			const doneDateText = `✅ ${doneDate}`;
+			additionalContent.push(doneDateText);
+		}
+
+		const additionalContentText = additionalContent.join(" ");
+
+		const result = `- [${task.done ? "x" : " "}] ${additionalContentText}`;
 		if (this.plugin.settings.debugging) console.log("EmojiTaskFormatter: Task formatted", result);
 
 		return result;
 	}
 }
 
-export {EmojiTaskParser, EmojiTaskFormatter}
+export {EmojiTaskParser, EmojiTaskFormatter, REGEX}

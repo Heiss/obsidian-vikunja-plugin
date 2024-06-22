@@ -24,6 +24,8 @@ export interface VikunjaPluginSettings {
 	removeTasksOnlyInDefaultProject: boolean,
 	enableCron: boolean,
 	cronInterval: number,
+	updateOnStartup: boolean,
+	updateOnCursorMovement: boolean
 }
 
 export const DEFAULT_SETTINGS: VikunjaPluginSettings = {
@@ -45,6 +47,8 @@ export const DEFAULT_SETTINGS: VikunjaPluginSettings = {
 	removeTasksOnlyInDefaultProject: true,
 	enableCron: false,
 	cronInterval: 500,
+	updateOnStartup: false,
+	updateOnCursorMovement: false
 }
 
 export class SettingTab extends PluginSettingTab {
@@ -68,15 +72,24 @@ export class SettingTab extends PluginSettingTab {
 		const hostDesc = document.createDocumentFragment();
 		hostDesc.append("Set your Vikunja Host.");
 		hostDesc.append(document.createElement("br"));
-		hostDesc.append("Leave out the trailing slash. Valid examples: https://try.vikunja.io/api/v1 or https://try.vikunja.io");
+		hostDesc.append("Leave out the trailing slash. Valid examples: https://try.vikunja.io");
 
 		new Setting(containerEl).setName("Host")
 			.setDesc(hostDesc)
 			.addText(text => text
 				.setValue(this.plugin.settings.vikunjaHost)
 				.onChange(async (value: string) => {
-					if (!value.endsWith("/api/v1")) {
-						value += "/api/v1";
+					if (value.endsWith("/api/v1")) {
+						new Notice("Host must not end with /api/v1");
+						return;
+					}
+					if (!value.startsWith("http")) {
+						new Notice("Host must start with http:// or https://");
+						return;
+					}
+					if (value.endsWith("/")) {
+						new Notice("Host must not end with /");
+						return;
 					}
 
 					this.plugin.settings.vikunjaHost = value;
@@ -120,7 +133,8 @@ export class SettingTab extends PluginSettingTab {
 				}));
 
 
-		new Setting(containerEl).setHeading().setName('General settings').setDesc('');
+		new Setting(containerEl).setHeading()
+			.setName('General settings')
 
 		new Setting(containerEl)
 			.setName("Debugging")
@@ -428,6 +442,36 @@ export class SettingTab extends PluginSettingTab {
 					});
 				}
 			)
+
+		new Setting(containerEl)
+			.setHeading()
+			.setName("Updates: Obsidian <-> Vikunja")
+
+		new Setting(containerEl)
+			.setDesc("This plugin prioritizes changes in Obsidian over Vikunja. This means, that if you make changes in both systems, the changes in Obsidian will be used over the one in Vikunja. To prevent data loss, do not make any changes in your markdown files without Obsidian.");
+
+		new Setting(containerEl)
+			.setName("Check for updates on startUp")
+			.setDesc("This will check for changes in Vault and Vikunja and update the tasks vice versa, but prioritize the changes in Obsidian. Useful, if you want to use Vikunja, but do not make any changes directly on the markdown files while obsidian is closed.")
+			.addToggle(toggle =>
+				toggle
+					.setValue(this.plugin.settings.updateOnStartup)
+					.onChange(async (value: boolean) => {
+						this.plugin.settings.updateOnStartup = value;
+						await this.plugin.saveSettings();
+					}));
+
+		new Setting(containerEl)
+			.setName("Check for updates on cursor movement")
+			.setDesc("This will check for changes only on cursors last line in Vault. Useful, if you want to reduce the load on your system and faster updates.")
+			.addToggle(toggle =>
+				toggle
+					.setValue(this.plugin.settings.updateOnCursorMovement)
+					.onChange(async (value: boolean) => {
+						this.plugin.settings.updateOnCursorMovement = value;
+						await this.plugin.saveSettings();
+					}));
+
 	}
 
 
