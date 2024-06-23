@@ -58,19 +58,21 @@ class Processor {
 		if (this.plugin.settings.debugging) console.log("Processor: Got tasks from vault", localTasks);
 
 		if (this.plugin.settings.debugging) console.log("Processor: Pulling tasks from Vikunja");
-		const vikunjaTasks = await this.plugin.tasksApi.getAllTasks();
-		if (this.plugin.settings.debugging) console.log("Processor: Got tasks from Vikunja", vikunjaTasks);
+		const vikunjaTasksBeforeDeletion = await this.plugin.tasksApi.getAllTasks();
+		if (this.plugin.settings.debugging) console.log("Processor: Got tasks from Vikunja", vikunjaTasksBeforeDeletion);
 
 		const {
 			tasksToUpdateInVault,
 			tasksToUpdateInVikunja
-		} = this.splitTaskAfterUpdatedStatus(localTasks, vikunjaTasks);
+		} = this.splitTaskAfterUpdatedStatus(localTasks, vikunjaTasksBeforeDeletion);
 		if (this.plugin.settings.debugging) console.log("Processor: Split tasks after updated status, outstanding updates in vault", tasksToUpdateInVault, "outstanding updates in vikunja", tasksToUpdateInVikunja);
 
 		// Processing steps
 		if (this.plugin.settings.debugging) console.log("Processor: Deleting tasks and labels in Vikunja");
-		await this.removeTasksInVikunjaIfNotInVault(localTasks, vikunjaTasks);
-		await this.removeLabelsInVikunjaIfNotInVault(localTasks, vikunjaTasks);
+		const deletedVikunjaTasks = await this.removeTasksInVikunjaIfNotInVault(localTasks, vikunjaTasksBeforeDeletion);
+		await this.removeLabelsInVikunjaIfNotInVault(localTasks, vikunjaTasksBeforeDeletion);
+		// Filter out deleted tasks
+		const vikunjaTasks = vikunjaTasksBeforeDeletion.filter(task => !deletedVikunjaTasks.find(deletedTask => deletedTask.id === task.id));
 
 		if (this.plugin.settings.debugging) console.log("Processor: Creating labels in Vikunja", localTasks);
 		localTasks = await this.createLabels(localTasks);
@@ -339,11 +341,15 @@ class Processor {
 		}
 	}
 
-	private async removeTasksInVikunjaIfNotInVault(localTasks: PluginTask[], vikunjaTasks: ModelsTask[]) {
+	/*
+	 * Remove tasks in Vikunja if they are not in the vault anymore.
+	 * Returns the tasks which are not in the vault anymore. Filter it yourself if needed.
+	 */
+	private async removeTasksInVikunjaIfNotInVault(localTasks: PluginTask[], vikunjaTasks: ModelsTask[]): Promise<ModelsTask[]> {
 		// Check placed here, so no wrong deletion happens
 		if (!this.plugin.settings.removeTasksIfInVaultNotFound) {
 			if (this.plugin.settings.debugging) console.log("Processor: Not deleting tasks in vikunja if ID not found in vault");
-			return;
+			return [];
 		}
 
 		let tasksToDeleteInVikunja = vikunjaTasks.filter(task => !localTasks.find(vaultTask => vaultTask.task.id === task.id));
@@ -354,6 +360,7 @@ class Processor {
 		}
 		await this.plugin.tasksApi.deleteTasks(tasksToDeleteInVikunja);
 
+		return tasksToDeleteInVikunja;
 	}
 
 	private async removeLabelsInVikunjaIfNotInVault(localTasks: PluginTask[], _vikunjaTasks: ModelsTask[]) {
