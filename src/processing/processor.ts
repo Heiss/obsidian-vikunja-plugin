@@ -284,20 +284,22 @@ class Processor {
 		const tasksToPushToVault = vikunjaTasks.filter(task => !localTasks.find(vaultTask => vaultTask.task.id === task.id));
 		if (this.plugin.settings.debugging) console.log("Processor: Pushing tasks to vault", tasksToPushToVault);
 
-		const createdTasksInVault = tasksToPushToVault.map(async task => {
+		const createdTasksInVault: PluginTask[] = [];
+		for (const task of tasksToPushToVault) {
 			let file: TFile;
-			const chosenFile = this.app.vault.getAbstractFileByPath(this.plugin.settings.chosenOutputFile);
+			const chosenFile = this.app.vault.getFileByPath(this.plugin.settings.chosenOutputFile);
 			const date = moment();
 			const dailies = getAllDailyNotes()
 
 			switch (this.plugin.settings.chooseOutputFile) {
 				case chooseOutputFile.File:
 					if (!chosenFile) throw new Error("Output file not found");
-					file = chosenFile as TFile;
+					file = chosenFile;
 					break;
 				case chooseOutputFile.DailyNote:
 					if (!appHasDailyNotesPluginLoaded()) {
-						console.log("Daily notes core plugin is not loaded. So we cannot create daily note. Please install daily notes core plugin. Interrupt now.")
+						new Notice("Daily notes core plugin is not loaded. So we cannot create daily note. Please install daily notes core plugin. Interrupt now.")
+						continue;
 					}
 
 					file = getDailyNote(date, dailies)
@@ -313,11 +315,11 @@ class Processor {
 				lineno: 0,
 				task: task
 			};
-			return pluginTask;
-		});
+			createdTasksInVault.push(pluginTask);
+		}
 
 		for (const task of createdTasksInVault) {
-			await this.saveToVault(await task);
+			await this.saveToVault(task);
 		}
 	}
 

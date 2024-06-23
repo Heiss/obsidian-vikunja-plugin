@@ -98,26 +98,14 @@ export default class VikunjaPlugin extends Plugin {
 			await this.processor.exec();
 			new Notice('Syncing with Vikunja finished');
 		});
-		// Perform additional things with the ribbon
-		ribbonIconEl.addClass('my-plugin-ribbon-class');
-
 
 		// This adds a status bar item to the bottom of the app. Does not work on mobile apps.
 		const statusBarItemEl = this.addStatusBarItem();
 		statusBarItemEl.setText('Status Bar Text');
 
-		// This adds a simple command that can be triggered anywhere
-		this.addCommand({
-			id: 'open-sample-modal-simple',
-			name: 'Open sample modal (simple)',
-			callback: () => {
-				new MainModal(this.app).open();
-			}
-		});
-
 		// This adds a complex command that can check whether the current state of the app allows execution of the command
 		this.addCommand({
-			id: 'vikunja-execute-sync-command',
+			id: 'vikunja-execute-sync',
 			name: 'Trigger sync with Vikunja',
 			callback: async () => {
 				await this.processor.exec();
