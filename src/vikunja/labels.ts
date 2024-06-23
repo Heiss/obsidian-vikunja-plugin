@@ -27,13 +27,12 @@ class Label {
 	}
 
 	async getLabels(): Promise<ModelsLabel[]> {
-		let allLabels: ModelsLabel[];
+		let allLabels: ModelsLabel[] = [];
 		try {
 			allLabels = await this.labelsApi.labelsGet();
 		} catch (e) {
 			// There is a bug in Vikunja API that returns null instead of an empty array
 			console.error("LabelsAPI: Could not get labels", e);
-			allLabels = [];
 		}
 		return allLabels;
 	}
@@ -71,6 +70,7 @@ class Label {
 	}
 
 	async getAndCreateLabels(labels: ModelsLabel[]): Promise<ModelsLabel[]> {
+		// FIXME This call will be placed everytime for every task. It should be cached or optimized away.
 		const allLabels = await this.getLabels();
 
 		const labelTitles = allLabels.map(label => label.title);
