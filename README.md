@@ -23,22 +23,21 @@ The experience with this plugin is a lot like the excellent plugins for todoist:
 Every feature prioritizes the Obsidian side. If a task is updated in both systems, the Obsidian task will be the one who
 wins. So it is currently not recommended to use Vikunja and Obsidian at the same time to update tasks or in team work.
 
-| Feature                     | -> Vikunja | <- Vikunja | Description                                |
-|-----------------------------|------------|------------|--------------------------------------------|
-| Add task                    | ✅          | ✅          |                                            |
-| Update task                 | ✅          | ✅          |                                            |
-| Delete task                 | ✅          | ❌          | No way to find the deleted vikunja tasks.  |
-| Modify task title           | ✅          | ✅          |                                            |
-| Modify task description     | 🚧         | 🚧         |                                            |
-| Modify assigned labels/tags | ✅          | ✅          |                                            |
-| Modify due date             | ✅          | ✅          |                                            |
-| Mark task as done/undone    | ✅          | ✅          |                                            |
-| Sync done date              | ✅          | ✅          |                                            |
-| Set task priority           | 🚧         | 🚧         |                                            |
-| Modify task priority        | 🚧         | 🚧         |                                            |
-| Add task to project         | ✅(1)       | 🚧         | (1) Only the default project is supported. |
-| Update assigned project     | 🚧         | 🚧         |                                            |
-| Move tasks between files    | ✅          | -          |                                            |
+| Feature                         | -> Vikunja | <- Vikunja | Description                                                                                                             |
+|---------------------------------|------------|------------|-------------------------------------------------------------------------------------------------------------------------|
+| Add task                        | ✅          | ✅(2)       | (2) Default behaviour. But disables (3)                                                                                 |
+| Update task                     | ✅          | ✅          |                                                                                                                         |
+| Delete task                     | ✅(3)       | ❌(4)       | (3) Can be enabled through settings. But disables (2).<br/>(4) No way to find the deleted vikunja tasks.                |
+| Modify task title               | ✅          | ✅          |                                                                                                                         |
+| Modify task description         | 🚧         | 🚧         | [Issue #1](https://github.com/Heiss/obsidian-vikunja-plugin/issues/1)                                                   |
+| Modify assigned labels/tags     | ✅          | ✅          |                                                                                                                         |
+| Modify due date                 | ✅          | ✅          |                                                                                                                         |
+| Mark task as done/undone        | ✅          | ✅          |                                                                                                                         |
+| Sync done date                  | ✅          | ✅          |                                                                                                                         |
+| Set and modify task priority    | 🚧         | 🚧         | [Issue #3](https://github.com/Heiss/obsidian-vikunja-plugin/issues/3)                                                   |
+| Add and modify assigned project | ✅(1)       | 🚧         | [Issue #4](https://github.com/Heiss/obsidian-vikunja-plugin/issues/4)<br/>(1) Currently only default project supported. |
+| Move tasks between files        | ✅          | ❌          |                                                                                                                         |
+| Modify relations 		             | 🚧         | 🚧         | [Issue #2](https://github.com/Heiss/obsidian-vikunja-plugin/issues/2)                                                   |
 
 ✅= done and usable, 🚧=not yet implemented but under development, ❌=not possible or will not come
 
