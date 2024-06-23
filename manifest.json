@@ -1,7 +1,7 @@
 {
 	"id": "vikunja-sync",
 	"name": "Vikunja Sync",
-	"version": "1.0.0",
+	"version": "1.0.1",
 	"minAppVersion": "0.15.0",
 	"description": "Integrates Vikunja into Obsidian as Task Management Platform.",
 	"author": "Peter Heiss",

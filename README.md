@@ -2,10 +2,10 @@
 
 This **unofficial** plugin connects Obsidian and [Vikunja](https://vikunja.io). Vikunja is a todo-App and task manager
 that helps you to organize your life. It can be used as a self-host replacement for [todoist.com](todoist.com/).
-Synchronize with this plugin your vault with your Vikunja instance back and forth. It holds a lot of settings to
-customize it to your workflow needs.
+Synchronize your tasks with your Vikunja instance back and forth. It holds a lot of settings to
+adjust it to your workflow needs.
 
-Per default, this plugin only runs on manual trigger. In settings you can find a setting to enable automatic sync, also
+Per default, this plugin only runs on manual trigger. In settings, you can find a setting to enable automatic sync, also
 the interval can be set there. All tasks will be pushed to vikunja on first sync and stay in sync.
 
 This plugin depends on some other plugins to work: (subject to change with later updates)
@@ -17,6 +17,38 @@ The experience with this plugin is a lot like the excellent plugins for todoist:
 
 - [Ultimate Todoist Sync for Obsidian Plugin](https://github.com/HeroBlackInk/ultimate-todoist-sync-for-obsidian)
 - [Obsidian Todoist Plugin](https://github.com/jamiebrynes7/obsidian-todoist-plugin)
+
+## Features
+
+Every feature prioritizes the Obsidian side. If a task is updated in both systems, the Obsidian task will be the one who
+wins. So it is currently not recommended to use Vikunja and Obsidian at the same time to update tasks or in team work.
+
+| Feature                     | -> Vikunja | <- Vikunja | Description                                |
+|-----------------------------|------------|------------|--------------------------------------------|
+| Add task                    | ✅          | ✅          |                                            |
+| Update task                 | ✅          | ✅          |                                            |
+| Delete task                 | ✅          | ❌          | No way to find the deleted vikunja tasks.  |
+| Modify task title           | ✅          | ✅          |                                            |
+| Modify task description     | 🚧         | 🚧         |                                            |
+| Modify assigned labels/tags | ✅          | ✅          |                                            |
+| Modify due date             | ✅          | ✅          |                                            |
+| Mark task as done/undone    | ✅          | ✅          |                                            |
+| Sync done date              | ✅          | ✅          |                                            |
+| Set task priority           | 🚧         | 🚧         |                                            |
+| Modify task priority        | 🚧         | 🚧         |                                            |
+| Add task to project         | ✅(1)       | 🚧         | (1) Only the default project is supported. |
+| Update assigned project     | 🚧         | 🚧         |                                            |
+| Move tasks between files    | ✅          | -          |                                            |
+
+✅= done and usable, 🚧=not yet implemented but under development, ❌=not possible or will not come
+
+Supported Task Formats:
+
+- [Emoji Task Format](https://publish.obsidian.md/tasks/Reference/Task+Formats/Tasks+Emoji+Format)
+
+Supported Vault Searching Implementations:
+
+- [Dataview Plugin](https://github.com/blacksmithgu/obsidian-dataview)
 
 ## Bugs
 
