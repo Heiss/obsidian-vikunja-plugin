@@ -1,6 +1,5 @@
 import {Notice, Plugin} from 'obsidian';
-import {DEFAULT_SETTINGS, SettingTab, VikunjaPluginSettings} from "./src/settings/SettingTab";
-import {MainModal} from "./src/modals/mainModal";
+import {DEFAULT_SETTINGS, SettingTab, VikunjaPluginSettings} from "./src/settings/settingTab";
 import {Tasks} from "./src/vikunja/tasks";
 import {Processor} from "./src/processing/processor";
 import {UserUser} from "./vikunja_sdk";
@@ -96,7 +95,6 @@ export default class VikunjaPlugin extends Plugin {
 			// Called when the user clicks the icon.
 			new Notice('Start syncing with Vikunja');
 			await this.processor.exec();
-			new Notice('Syncing with Vikunja finished');
 		});
 
 		// This adds a status bar item to the bottom of the app. Does not work on mobile apps.
