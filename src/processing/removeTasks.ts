@@ -14,16 +14,13 @@ class RemoveTasks implements IAutomatonSteps {
 	}
 
 	async step(localTasks: PluginTask[], vikunjaTasksBeforeDeletion: ModelsTask[]): Promise<StepsOutput> {
-
 		const vikunjaTasks = await this.removeTasksInVikunja(localTasks, vikunjaTasksBeforeDeletion);
-
 		return {localTasks, vikunjaTasks};
 	}
 
 	private async removeTasksInVikunja(localTasks: PluginTask[], vikunjaTasksBeforeDeletion: ModelsTask[]) {
 		if (this.plugin.settings.debugging) console.log("Step RemoveTask: Deleting tasks and labels in Vikunja");
 		const deletedVikunjaTasks = await this.removeTasksInVikunjaIfNotInVault(localTasks, vikunjaTasksBeforeDeletion);
-		await this.removeLabelsInVikunjaIfNotInVault(localTasks, vikunjaTasksBeforeDeletion);
 		// Filter out deleted tasks
 		return vikunjaTasksBeforeDeletion.filter(task => !deletedVikunjaTasks.find(deletedTask => deletedTask.id === task.id));
 	}
@@ -50,20 +47,6 @@ class RemoveTasks implements IAutomatonSteps {
 		return tasksToDeleteInVikunja;
 	}
 
-	private async removeLabelsInVikunjaIfNotInVault(localTasks: PluginTask[], _vikunjaTasks: ModelsTask[]) {
-		if (!this.plugin.settings.removeLabelsIfInVaultNotUsed) {
-			if (this.plugin.settings.debugging) console.log("Step RemoveTask: Not deleting labels in vikunja if ID not found in vault");
-			return;
-		}
-
-		for (const task of localTasks) {
-			if (!task.task.labels) continue;
-
-			const labels = task.task.labels;
-			if (this.plugin.settings.debugging) console.log("Step RemoveTask: Found labels which are used in Vault", labels);
-			await this.plugin.labelsApi.deleteUnusedLabels(labels);
-		}
-	}
 }
 
 export {RemoveTasks};

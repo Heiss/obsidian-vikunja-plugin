@@ -7,6 +7,7 @@ import {RemoveTasks} from "./removeTasks";
 import UpdateTasks from "./updateTasks";
 import CreateTasks from "./createTasks";
 import {Processor} from "./processor";
+import {SyncLabels} from "./syncLabels";
 
 interface StepsOutput {
 	localTasks: PluginTask[];
@@ -43,6 +44,7 @@ class Automaton {
 			new RemoveTasks(app, plugin),
 			new CreateTasks(app, plugin, processor),
 			new UpdateTasks(app, plugin, processor),
+			new SyncLabels(app, plugin),
 		];
 
 		this.status = AutomatonStatus.READY;

@@ -37,7 +37,6 @@ class Tasks {
 		if (!task.id) throw new Error("TasksApi: Task id is not defined");
 		if (this.plugin.settings.debugging) console.log("TasksApi: Updating task", task.id, task);
 		const param: TasksIdPostRequest = {id: task.id, task: task};
-		await this.updateLabelsInVikunja(task);
 		return this.tasksApi.tasksIdPost(param);
 	}
 

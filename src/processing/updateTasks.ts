@@ -22,14 +22,14 @@ class UpdateTasks implements IAutomatonSteps {
 	}
 
 	async step(localTasks: PluginTask[], vikunjaTasks: ModelsTask[]): Promise<StepsOutput> {
-		if (this.plugin.settings.debugging) console.log("Step UpdateTask: Updating tasks in vault and Vikunja");
+		if (this.plugin.settings.debugging) console.log("Step UpdateTask: Starting update tasks");
 		const {
 			tasksToUpdateInVault,
 			tasksToUpdateInVikunja
 		} = this.splitTaskAfterUpdatedStatus(localTasks, vikunjaTasks);
 		if (this.plugin.settings.debugging) console.log("Step UpdateTask: Split tasks after updated status, outstanding updates in vault", tasksToUpdateInVault, "outstanding updates in vikunja", tasksToUpdateInVikunja);
 
-		await this.updateTasks(tasksToUpdateInVikunja, tasksToUpdateInVault);
+		await this.updateTasks(tasksToUpdateInVault, tasksToUpdateInVikunja);
 
 		return {localTasks, vikunjaTasks};
 	}
@@ -49,10 +49,15 @@ class UpdateTasks implements IAutomatonSteps {
 		let tasksToUpdateInVikunja: PluginTask[] = [];
 		for (const task of localTasks) {
 			const vikunjaTask = vikunjaTasks.find(vikunjaTask => vikunjaTask.id === task.task.id);
+			if (this.plugin.settings.debugging) console.log("Step UpdateTask: found Vikunja task", vikunjaTask, " for Vault task", task.task);
 			if (!vikunjaTask) continue;
 			if (!vikunjaTask || !vikunjaTask.updated || !task.task.updated) {
 				if (this.plugin.settings.debugging) console.log("Step UpdateTask: updated field is not defined", task, vikunjaTask);
 				throw new Error("Task updated field is not defined");
+			}
+			if (this.areTasksEqual(task.task, vikunjaTask)) {
+				if (this.plugin.settings.debugging) console.log("Step UpdateTask: Task is the same in both platforms", task, vikunjaTask);
+				continue;
 			}
 
 			let comparison;
@@ -68,12 +73,25 @@ class UpdateTasks implements IAutomatonSteps {
 		}
 
 		return {
-			tasksToUpdateInVault: tasksToUpdateInVault,
-			tasksToUpdateInVikunja: tasksToUpdateInVikunja
+			tasksToUpdateInVault,
+			tasksToUpdateInVikunja
 		};
 	}
 
-	private async updateTasks(tasksToUpdateInVikunja: PluginTask[], tasksToUpdateInVault: PluginTask[]) {
+	private areTasksEqual(local: ModelsTask, vikunja: ModelsTask) {
+		const title = local.title === vikunja.title;
+		const description = local.description === vikunja.description;
+		const dueDate = local.dueDate === vikunja.dueDate;
+		const labels = local.labels?.filter(label => vikunja.labels?.find(vikunjaLabel => vikunjaLabel.title === label.title)).length === local.labels?.length;
+		const priority = local.priority === vikunja.priority;
+		const status = local.done === vikunja.done;
+		const doneAt = local.doneAt === vikunja.doneAt;
+//		const updatedAt = local.updated === vikunja.updated; not usable, because it is different if anything changes in local file
+
+		return title && description && dueDate && labels && priority && status && doneAt;
+	}
+
+	private async updateTasks(tasksToUpdateInVault: PluginTask[], tasksToUpdateInVikunja: PluginTask[]) {
 		if (this.plugin.settings.debugging) console.log("Step UpdateTask: Updating tasks in vault and Vikunja");
 		await this.updateTasksInVikunja(tasksToUpdateInVikunja);
 		await this.updateTasksInVault(tasksToUpdateInVault);

@@ -30,26 +30,12 @@ class CreateTasks implements IAutomatonSteps {
 	}
 
 	private async createTasks(localTasks: PluginTask[], vikunjaTasks: ModelsTask[]) {
-		if (this.plugin.settings.debugging) console.log("Step CreateTask: Creating labels in Vikunja", localTasks);
-		localTasks = await this.createLabels(localTasks);
 
 		if (this.plugin.settings.debugging) console.log("Step CreateTask: Creating tasks in Vikunja and vault", localTasks, vikunjaTasks);
 		await this.pullTasksFromVikunjaToVault(localTasks, vikunjaTasks);
 		await this.pushTasksFromVaultToVikunja(localTasks, vikunjaTasks);
 	}
 
-	private async createLabels(localTasks: PluginTask[]) {
-		return await Promise.all(localTasks
-			.map(async task => {
-					if (!task.task) throw new Error("Task is not defined");
-					if (!task.task.labels) return task;
-
-					task.task.labels = await this.plugin.labelsApi.getAndCreateLabels(task.task.labels);
-					if (this.plugin.settings.debugging) console.log("Step CreateTask: Preparing labels for local tasks for vikunja update", task);
-					return task;
-				}
-			));
-	}
 
 	private async pushTasksFromVaultToVikunja(localTasks: PluginTask[], vikunjaTasks: ModelsTask[]) {
 		const tasksToPushToVikunja = localTasks.filter(task => !vikunjaTasks.find(vikunjaTask => vikunjaTask.id === task.task.id));
@@ -57,14 +43,19 @@ class CreateTasks implements IAutomatonSteps {
 		const createdTasksInVikunja = await this.plugin.tasksApi.createTasks(tasksToPushToVikunja.map(task => task.task));
 		if (this.plugin.settings.debugging) console.log("Step CreateTask: Created tasks in vikunja", createdTasksInVikunja);
 
-		const tasksToUpdateInVault = localTasks.map(task => {
+		let tasksToUpdateInVault = [];
+
+		for (const task of tasksToPushToVikunja) {
 			const createdTask = createdTasksInVikunja.find((vikunjaTask: ModelsTask) => vikunjaTask.title === task.task.title);
-			if (createdTask) {
-				task.task = createdTask;
+			if (!createdTask) {
+				continue;
 			}
-			return task;
-		});
+			task.task = createdTask;
+			tasksToUpdateInVault.push(task);
+		}
+
 		for (const task of tasksToUpdateInVault) {
+			if (this.plugin.settings.debugging) console.log("Step CreateTask: Updating task in vault", task);
 			await this.processor.updateToVault(task);
 		}
 	}

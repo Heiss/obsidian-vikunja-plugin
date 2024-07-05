@@ -5,6 +5,9 @@ that helps you to organize your life. It can be used as a self-host replacement 
 Synchronize your tasks with your Vikunja instance back and forth. It holds a lot of settings to
 adjust it to your workflow needs.
 
+Do not use this plugin in team work. It is designed to work with one user only, which only works on one platform at any
+given time. If you make changes on both changes, obsidian will always win.
+
 Per default, this plugin only runs on manual trigger. In settings, you can find a setting to enable automatic sync, also
 the interval can be set there. All tasks will be pushed to vikunja on first sync and stay in sync.
 
