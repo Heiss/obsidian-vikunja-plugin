@@ -97,10 +97,6 @@ export default class VikunjaPlugin extends Plugin {
 			await this.processor.exec();
 		});
 
-		// This adds a status bar item to the bottom of the app. Does not work on mobile apps.
-		const statusBarItemEl = this.addStatusBarItem();
-		statusBarItemEl.setText('Status Bar Text');
-
 		// This adds a complex command that can check whether the current state of the app allows execution of the command
 		this.addCommand({
 			id: 'vikunja-execute-sync',

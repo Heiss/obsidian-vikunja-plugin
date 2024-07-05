@@ -67,75 +67,6 @@ export class SettingTab extends PluginSettingTab {
 
 		containerEl.empty();
 
-		new Setting(containerEl).setHeading().setName('Vikunja Settings').setDesc('Settings to connect to Vikunja.');
-
-		const hostDesc = document.createDocumentFragment();
-		hostDesc.append("Set your Vikunja Host.");
-		hostDesc.append(document.createElement("br"));
-		hostDesc.append("Leave out the trailing slash. Valid examples: https://try.vikunja.io");
-
-		new Setting(containerEl).setName("Host")
-			.setDesc(hostDesc)
-			.addText(text => text
-				.setValue(this.plugin.settings.vikunjaHost)
-				.onChange(async (value: string) => {
-					if (value.endsWith("/api/v1")) {
-						new Notice("Host must not end with /api/v1");
-						return;
-					}
-					if (!value.startsWith("http")) {
-						new Notice("Host must start with http:// or https://");
-						return;
-					}
-					if (value.endsWith("/")) {
-						new Notice("Host must not end with /");
-						return;
-					}
-
-					this.plugin.settings.vikunjaHost = value;
-					await this.plugin.saveSettings();
-					this.plugin.tasksApi.init();
-				}));
-
-		new Setting(containerEl)
-			.setName("Access Token")
-			.setDesc("Set your Vikunja Access Token")
-			.addText(text => text
-				.setValue(this.plugin.settings.vikunjaAccessToken)
-				.onChange(async (value: string) => {
-					this.plugin.settings.vikunjaAccessToken = value;
-					await this.plugin.saveSettings();
-					this.plugin.tasksApi.init();
-					// TODO: Implement an event to reload API configurations
-				}));
-
-		new Setting(containerEl)
-			.setName("Test connection")
-			.addButton(button => button
-				.setButtonText("Test")
-				.onClick(async () => {
-					button.setDisabled(true);
-					try {
-						const tasks = await this.plugin.tasksApi.getAllTasks();
-						if (this.plugin.settings.debugging) {
-							console.log(`SettingsTab: Got tasks:`, tasks);
-						}
-						new Notice("Connection OK! ✅");
-						await this.loadApi();
-					} catch (e) {
-						console.error(e);
-						new Notice("Connection Error! ❌");
-					}
-					// Reset text
-					setInterval(() => {
-						button.setButtonText("Test").setDisabled(false);
-					}, 2000);
-				}));
-
-
-		new Setting(containerEl).setHeading()
-			.setName('General settings')
-
 		new Setting(containerEl)
 			.setName("Debugging")
 			.setDesc("Enable debugging in console logs. Useful for troubleshooting and development.")
@@ -230,7 +161,7 @@ export class SettingTab extends PluginSettingTab {
 			}));
 
 			const cronIntervalEl = new Setting(containerEl)
-				.setName("Cron Interval")
+				.setName("Cron interval")
 				.setDesc(cronIntervalText)
 				.addText(text => text
 					.setValue(this.plugin.settings.cronInterval.toString())
@@ -251,6 +182,73 @@ export class SettingTab extends PluginSettingTab {
 					))
 			;
 		}
+
+		new Setting(containerEl).setHeading().setName('Vikunja Settings').setDesc('Settings to connect to Vikunja.');
+
+		const hostDesc = document.createDocumentFragment();
+		hostDesc.append("Set your Vikunja Host.");
+		hostDesc.append(document.createElement("br"));
+		hostDesc.append("Leave out the trailing slash. Valid examples: https://try.vikunja.io");
+
+		new Setting(containerEl).setName("Host")
+			.setDesc(hostDesc)
+			.addText(text => text
+				.setValue(this.plugin.settings.vikunjaHost)
+				.onChange(async (value: string) => {
+					if (value.endsWith("/api/v1")) {
+						new Notice("Host must not end with /api/v1");
+						return;
+					}
+					if (!value.startsWith("http")) {
+						new Notice("Host must start with http:// or https://");
+						return;
+					}
+					if (value.endsWith("/")) {
+						new Notice("Host must not end with /");
+						return;
+					}
+
+					this.plugin.settings.vikunjaHost = value;
+					await this.plugin.saveSettings();
+					this.plugin.tasksApi.init();
+				}));
+
+		new Setting(containerEl)
+			.setName("Access token")
+			.setDesc("Set your Vikunja Access token")
+			.addText(text => text
+				.setValue(this.plugin.settings.vikunjaAccessToken)
+				.onChange(async (value: string) => {
+					this.plugin.settings.vikunjaAccessToken = value;
+					await this.plugin.saveSettings();
+					this.plugin.tasksApi.init();
+					// TODO: Implement an event to reload API configurations
+				}));
+
+		new Setting(containerEl)
+			.setName("Test connection")
+			.addButton(button => button
+				.setButtonText("Test")
+				.onClick(async () => {
+					button.setDisabled(true);
+					try {
+						const tasks = await this.plugin.tasksApi.getAllTasks();
+						if (this.plugin.settings.debugging) {
+							console.log(`SettingsTab: Got tasks:`, tasks);
+						}
+						new Notice("Connection OK! ✅");
+						await this.loadApi();
+					} catch (e) {
+						console.error(e);
+						new Notice("Connection Error! ❌");
+					}
+					// Reset text
+					setInterval(() => {
+						button.setButtonText("Test").setDisabled(false);
+					}, 2000);
+				}));
+
+
 
 		new Setting(containerEl).setHeading().setName('Pull: Obsidian <- Vikunja').setDesc('');
 
@@ -451,7 +449,7 @@ export class SettingTab extends PluginSettingTab {
 			.setDesc("This plugin prioritizes changes in Obsidian over Vikunja. This means, that if you make changes in both systems, the changes in Obsidian will be used over the one in Vikunja. To prevent data loss, do not make any changes in your markdown files without Obsidian.");
 
 		new Setting(containerEl)
-			.setName("Check for updates on startUp")
+			.setName("Check for updates on startup")
 			.setDesc("This will check for changes in Vault and Vikunja and update the tasks vice versa, but prioritize the changes in Obsidian. Useful, if you want to use Vikunja, but do not make any changes directly on the markdown files while obsidian is closed.")
 			.addToggle(toggle =>
 				toggle
