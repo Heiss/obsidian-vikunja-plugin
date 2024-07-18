@@ -36,7 +36,7 @@ class Processor {
 	async exec() {
 		if (this.plugin.settings.debugging) console.log("Processor: Start processing");
 
-		if (this.plugin.foundProblem) {
+		if (this.plugin.commands.isEverythingSetup()) {
 			new Notice("Vikunja Plugin: Found problems in plugin. Have to be fixed first. Syncing is stopped.");
 			if (this.plugin.settings.debugging) console.log("Processor: Found problems in plugin. Have to be fixed first.");
 			return;
@@ -101,7 +101,7 @@ class Processor {
 	async updateTasksOnStartup() {
 		if (this.plugin.settings.debugging) console.log("Processor: Update tasks in vault and vikunja");
 		if (this.alreadyUpdateTasksOnStartup) throw new Error("Update tasks on startup can only be called once");
-		if (this.plugin.foundProblem) {
+		if (this.plugin.commands.isEverythingSetup()) {
 			if (this.plugin.settings.debugging) console.log("Processor: Found problems in plugin. Have to be fixed first. Syncing is stopped.");
 			return;
 		}

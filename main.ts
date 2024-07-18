@@ -3,10 +3,8 @@ import {DEFAULT_SETTINGS, SettingTab, VikunjaPluginSettings} from "./src/setting
 import {Tasks} from "./src/vikunja/tasks";
 import {Processor} from "./src/processing/processor";
 import {UserUser} from "./vikunja_sdk";
-import {backendToFindTasks, chooseOutputFile} from "./src/enums";
-import {appHasDailyNotesPluginLoaded} from "obsidian-daily-notes-interface";
-import {getAPI} from "obsidian-dataview";
 import {Label} from "./src/vikunja/labels";
+import Commands from "./src/commands";
 
 // Remember to rename these classes and interfaces!
 
@@ -14,14 +12,15 @@ export default class VikunjaPlugin extends Plugin {
 	settings: VikunjaPluginSettings;
 	tasksApi: Tasks;
 	userObject: UserUser | undefined;
-	foundProblem = false;
 	labelsApi: Label;
 	processor: Processor;
+	commands: Commands;
 
 	async onload() {
 		await this.loadSettings();
-		this.checkDependencies();
+		this.commands = new Commands(this.app, this);
 
+		this.commands.checkDependencies();
 		this.tasksApi = new Tasks(this.app, this);
 		this.userObject = undefined;
 		this.labelsApi = new Label(this.app, this);
@@ -42,41 +41,6 @@ export default class VikunjaPlugin extends Plugin {
 		await this.saveData(this.settings);
 	}
 
-	checkDependencies() {
-		let foundProblem = false;
-		if (this.settings.chooseOutputFile === chooseOutputFile.DailyNote && appHasDailyNotesPluginLoaded()) {
-			new Notice("Vikunja Plugin: Daily notes core plugin is not loaded. So we cannot create daily note. Please install daily notes core plugin to use Daily Note.")
-			if (this.settings.debugging) console.log("Vikunja Plugin: Daily notes core plugin is not loaded. So we cannot create daily note. Please install daily notes core plugin to use Daily Note.");
-			foundProblem = true;
-		}
-
-		if (this.settings.chooseOutputFile === chooseOutputFile.File) {
-			if (this.settings.chosenOutputFile === "") {
-				new Notice("Vikunja Plugin: Output file is not selected. Please select a file to use File as output.");
-				if (this.settings.debugging) console.log("Vikunja Plugin: Output file is not selected. Please select a file to use File as output.");
-				foundProblem = true;
-			}
-			if (this.app.vault.getAbstractFileByPath(this.settings.chosenOutputFile) === null) {
-				new Notice("Vikunja Plugin: Output file not found. Please select a valid file to use File as output.");
-				if (this.settings.debugging) console.log("Vikunja Plugin: Output file not found. Please select a valid file to use File as output.");
-				foundProblem = true;
-			}
-		}
-
-		if (this.settings.backendToFindTasks === backendToFindTasks.Dataview && getAPI(this.app) === undefined) {
-			new Notice("Vikunja Plugin: Obsidian Dataview plugin is not loaded. Please install Obsidian Dataview plugin to use Dataview.");
-			if (this.settings.debugging) console.log("Vikunja Plugin: Obsidian Dataview plugin is not loaded. Please install Obsidian Dataview plugin to use Dataview.");
-			foundProblem = true;
-		}
-
-		if (foundProblem) {
-			new Notice(
-				"Vikunja Plugin: Found problems. Please fix them in settings before using the plugin."
-			);
-		}
-
-		this.foundProblem = foundProblem;
-	}
 
 	async checkLastLineForUpdate() {
 		if (this.settings.debugging) console.log("Checking for task update");
@@ -96,15 +60,7 @@ export default class VikunjaPlugin extends Plugin {
 			new Notice('Start syncing with Vikunja');
 			await this.processor.exec();
 		});
-
-		// This adds a complex command that can check whether the current state of the app allows execution of the command
-		this.addCommand({
-			id: 'vikunja-execute-sync',
-			name: 'Trigger sync with Vikunja',
-			callback: async () => {
-				await this.processor.exec();
-			}
-		});
+		this.setupCommands();
 
 		// This adds a settings tab so the user can configure various aspects of the plugin
 		this.addSettingTab(new SettingTab(this.app, this));
@@ -123,6 +79,24 @@ export default class VikunjaPlugin extends Plugin {
 				},
 				this.settings.cronInterval * 1000)
 		);
+	}
+
+	private setupCommands() {
+		// This adds a complex command that can check whether the current state of the app allows execution of the command
+		this.addCommand({
+			id: 'vikunja-execute-sync',
+			name: 'Trigger sync with Vikunja',
+			callback: async () => {
+				await this.processor.exec();
+			}
+		});
+		this.addCommand({
+			id: 'vikunja-move-tasks-to-default-project',
+			name: 'Move all tasks to default project',
+			callback: async () => {
+				await this.commands.moveAllTasksToDefaultProject();
+			}
+		})
 	}
 
 	private async handleEditorChange() {

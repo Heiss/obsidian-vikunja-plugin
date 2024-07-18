@@ -83,7 +83,7 @@ export class SettingTab extends PluginSettingTab {
 			.addButton(button => button
 				.setButtonText("Check")
 				.onClick(async () => {
-					this.plugin.checkDependencies();
+					this.plugin.commands.checkDependencies();
 					new Notice("Check for dependencies done.");
 				})
 			);
@@ -247,7 +247,6 @@ export class SettingTab extends PluginSettingTab {
 						button.setButtonText("Test").setDisabled(false);
 					}, 2000);
 				}));
-
 
 
 		new Setting(containerEl).setHeading().setName('Pull: Obsidian <- Vikunja').setDesc('');
@@ -440,6 +439,16 @@ export class SettingTab extends PluginSettingTab {
 					});
 				}
 			)
+		new Setting(containerEl)
+			.setName("Move all tasks to selected default project")
+			.setDesc("This will move all tasks from Vault to the selected default project in Vikunja. This will not delete any tasks in Vikunja, but only move them to the selected project. This helps, if you make a wrong decision in the past. This does not create any tasks in Vikunja.")
+			.addButton(button => button
+				.setButtonText("Move all tasks")
+				.onClick(async () => {
+						await this.plugin.commands.moveAllTasksToDefaultProject();
+					}
+				));
+
 
 		new Setting(containerEl)
 			.setHeading()

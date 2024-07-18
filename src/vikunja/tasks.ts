@@ -132,6 +132,24 @@ class Tasks {
 		return this.tasksApi.tasksIdGet(param);
 	}
 
+	async updateProjectsIdInVikunja(tasks: ModelsTask[], projectId: number) {
+		if (this.plugin.settings.debugging) console.log("TasksApi: Updating project id in tasks", projectId);
+		return await Promise.all(tasks.map(task => this.updateProjectIdInVikunja(task, projectId)));
+	}
+
+	async updateProjectIdInVikunja(task: ModelsTask, projectId: number) {
+		if (!task.id) throw new Error("TasksApi: Task id is not defined");
+		if (this.plugin.settings.debugging) console.log("TasksApi: Updating project id in task", task.id, projectId);
+
+		if (task.projectId === projectId) {
+			if (this.plugin.settings.debugging) console.log("TasksApi: Project id is already set to", projectId, "in task", task.id);
+			return;
+		}
+
+		task.projectId = projectId;
+		await this.updateTask(task);
+	}
+
 	private async updateLabelsInVikunja(task: ModelsTask) {
 		try {
 			await this.addLabelToTask(task);
