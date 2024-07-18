@@ -29,8 +29,16 @@ class GetTasks implements IAutomatonSteps {
 		if (this.plugin.settings.debugging) console.log("Step GetTask: Got tasks from vault", localTasks);
 
 		if (this.plugin.settings.debugging) console.log("Step GetTask: Pulling tasks from Vikunja");
-		const vikunjaTasks = await this.getTasksFromVikunja();
+		let vikunjaTasks = await this.getTasksFromVikunja();
 		if (this.plugin.settings.debugging) console.log("Step GetTask: Got tasks from Vikunja", vikunjaTasks);
+
+		if (this.plugin.settings.pullTasksOnlyFromDefaultProject) {
+			if (this.plugin.settings.debugging) console.log("Step GetTask: Filtering tasks to only default project");
+			const defaultProjectId = this.plugin.settings.defaultVikunjaProject;
+			vikunjaTasks = vikunjaTasks.filter(task => task.projectId === defaultProjectId);
+			if (this.plugin.settings.debugging) console.log("Step GetTask: Filtered tasks to only default project", vikunjaTasks);
+		}
+
 		return {localTasks, vikunjaTasks};
 	}
 
