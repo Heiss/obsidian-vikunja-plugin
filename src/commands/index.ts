@@ -22,7 +22,8 @@ export default class Commands {
 
 	checkDependencies() {
 		let foundProblem = false;
-		if (this.plugin.settings.chooseOutputFile === chooseOutputFile.DailyNote && appHasDailyNotesPluginLoaded()) {
+
+		if (this.plugin.settings.chooseOutputFile === chooseOutputFile.DailyNote && !appHasDailyNotesPluginLoaded()) {
 			new Notice("Vikunja Plugin: Daily notes core plugin is not loaded. So we cannot create daily note. Please install daily notes core plugin to use Daily Note.")
 			if (this.plugin.settings.debugging) console.log("Vikunja Plugin: Daily notes core plugin is not loaded. So we cannot create daily note. Please install daily notes core plugin to use Daily Note.");
 			foundProblem = true;
