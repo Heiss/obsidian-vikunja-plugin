@@ -115,6 +115,13 @@ class Label {
 		if (this.plugin.settings.debugging) console.log("LabelsAPI: Created labels", createdLabels);
 		return createdLabels;
 	}
+
+	async deleteLabels(labels: ModelsLabel[]) {
+		for (const label of labels) {
+			if (!label.id) throw new Error("Label id is required to delete label");
+			await this.deleteLabel(label.id);
+		}
+	}
 }
 
 export {Label};

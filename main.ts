@@ -104,6 +104,13 @@ export default class VikunjaPlugin extends Plugin {
 				await this.commands.moveAllTasksToDefaultProject();
 			}
 		})
+		this.addCommand({
+			id: "vikunja-reset-tasks",
+			name: "Reset vikunja instance, delete all tasks and labels",
+			callback: async () => {
+				await this.commands.resetTasksInVikunja();
+			}
+		})
 	}
 
 	private async handleEditorChange() {

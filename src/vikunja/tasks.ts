@@ -69,10 +69,16 @@ class Tasks {
 	}
 
 	async deleteTask(task: ModelsTask) {
-		if (this.plugin.settings.debugging) console.log("TasksApi: Deleting task", task);
 		if (!task.id) throw new Error("TasksApi: Task id is not defined");
-		const param: TasksIdDeleteRequest = {id: task.id};
-		return this.tasksApi.tasksIdDelete(param);
+		const taskId = task.id;
+		if (this.plugin.settings.debugging) console.log("TasksApi: Deleting task", taskId);
+		const param: TasksIdDeleteRequest = {id: taskId};
+		try {
+			const result = await this.tasksApi.tasksIdDelete(param);
+			if (this.plugin.settings.debugging) console.log("TasksApi: Deleted task", taskId, result);
+		} catch (error) {
+			console.error("Error deleting task", error);
+		}
 	}
 
 	async deleteTasks(tasksToDeleteInVikunja: ModelsTask[]) {

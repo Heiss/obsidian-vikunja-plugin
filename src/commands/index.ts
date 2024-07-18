@@ -4,6 +4,7 @@ import {App, Notice} from "obsidian";
 import {getAPI} from "obsidian-dataview";
 import VikunjaPlugin from "../../main";
 import {PluginTask} from "../vaultSearcher/vaultSearcher";
+import {ConfirmModal} from "../modals/confirmModal";
 
 export default class Commands {
 	private plugin: VikunjaPlugin;
@@ -84,5 +85,41 @@ export default class Commands {
 		const taskParser = this.plugin.processor.getTaskParser();
 
 		return await vaultSearcher.getTasks(taskParser);
+	}
+
+	async resetTasksInVikunja() {
+		if (this.plugin.settings.debugging) console.log("Reset tasks in Vikunja");
+
+		new ConfirmModal(this.app, async (result) => {
+				if (result !== "yes") {
+					if (this.plugin.settings.debugging) console.log("Reset tasks in Vikunja cancelled");
+					return;
+				}
+
+				if (this.plugin.settings.debugging) console.log("Resetting tasks in Vikunja confirmed");
+				new Notice("Deleting tasks and labels in Vikunja");
+
+				while (true) {
+					const tasks = await this.plugin.tasksApi.getAllTasks();
+					const labels = await this.plugin.labelsApi.getLabels()
+
+					if (tasks.length === 0 && labels.length === 0) {
+						if (this.plugin.settings.debugging) console.log("No tasks and labels found in Vikunja");
+						break;
+					}
+
+					// It is important to handle both tasks and labels in one go, because tasks throws an error, if deleted in one go, so there need some time between execution.
+					if (this.plugin.settings.debugging) console.log("Deleting tasks", tasks);
+					await this.plugin.tasksApi.deleteTasks(tasks);
+
+					if (this.plugin.settings.debugging) console.log("Deleting labels", labels);
+					await this.plugin.labelsApi.deleteLabels(labels);
+				}
+
+
+				if (this.plugin.settings.debugging) console.log("Resetting tasks in Vikunja done");
+				new Notice("Resetting tasks and labels in Vikunja done");
+			}
+		).open();
 	}
 }
