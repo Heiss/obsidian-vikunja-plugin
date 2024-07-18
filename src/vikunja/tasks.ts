@@ -141,11 +141,6 @@ class Tasks {
 		if (!task.id) throw new Error("TasksApi: Task id is not defined");
 		if (this.plugin.settings.debugging) console.log("TasksApi: Updating project id in task", task.id, projectId);
 
-		if (task.projectId === projectId) {
-			if (this.plugin.settings.debugging) console.log("TasksApi: Project id is already set to", projectId, "in task", task.id);
-			return;
-		}
-
 		task.projectId = projectId;
 		await this.updateTask(task);
 	}
