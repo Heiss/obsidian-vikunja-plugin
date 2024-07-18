@@ -3,6 +3,7 @@ import {appHasDailyNotesPluginLoaded} from "obsidian-daily-notes-interface";
 import {App, Notice} from "obsidian";
 import {getAPI} from "obsidian-dataview";
 import VikunjaPlugin from "../../main";
+import {PluginTask} from "../vaultSearcher/vaultSearcher";
 
 export default class Commands {
 	private plugin: VikunjaPlugin;
@@ -62,10 +63,26 @@ export default class Commands {
 		}
 		if (this.plugin.settings.debugging) console.log("Move all tasks to default project");
 
+		const tasks = (await this.getTasksFromVault()).filter(task => task.task.id !== undefined).map(task => task.task);
+		await this.plugin.tasksApi.updateProjectsIdInVikunja(tasks, this.plugin.settings.defaultVikunjaProject);
+	}
+
+	async pullTasksFromVikunja() {
+		if (this.isEverythingSetup()) {
+			new Notice("Vikunja Plugin: Found problems in plugin. Have to be fixed first. Syncing is stopped.");
+			return;
+		}
+		if (this.plugin.settings.debugging) console.log("Pull tasks from Vikunja");
+
+		const vikunjaTasks = await this.plugin.tasksApi.getAllTasks();
+		const vaultTasks = await this.getTasksFromVault();
+		await this.plugin.processor.pullTasksFromVikunjaToVault(vaultTasks, vikunjaTasks);
+	}
+
+	async getTasksFromVault(): Promise<PluginTask[]> {
 		const vaultSearcher = this.plugin.processor.getVaultSearcher();
 		const taskParser = this.plugin.processor.getTaskParser();
 
-		const tasks = (await vaultSearcher.getTasks(taskParser)).filter(task => task.task.id !== undefined).map(task => task.task);
-		await this.plugin.tasksApi.updateProjectsIdInVikunja(tasks, this.plugin.settings.defaultVikunjaProject);
+		return await vaultSearcher.getTasks(taskParser);
 	}
 }

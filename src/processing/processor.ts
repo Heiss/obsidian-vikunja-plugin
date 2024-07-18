@@ -1,12 +1,19 @@
 import Plugin from "../../main";
-import {App, MarkdownView, Notice} from "obsidian";
+import {App, MarkdownView, moment, Notice, TFile} from "obsidian";
 import {PluginTask, VaultSearcher} from "../vaultSearcher/vaultSearcher";
 import {TaskFormatter, TaskParser} from "../taskFormats/taskFormats";
 import {Automaton, AutomatonStatus, IAutomatonSteps} from "./automaton";
 import UpdateTasks from "./updateTasks";
 import {EmojiTaskFormatter, EmojiTaskParser} from "../taskFormats/emojiTaskFormat";
-import {backendToFindTasks, supportedTasksPluginsFormat} from "../enums";
+import {backendToFindTasks, chooseOutputFile, supportedTasksPluginsFormat} from "../enums";
 import {DataviewSearcher} from "../vaultSearcher/dataviewSearcher";
+import {ModelsTask} from "../../vikunja_sdk";
+import {
+	appHasDailyNotesPluginLoaded,
+	createDailyNote,
+	getAllDailyNotes,
+	getDailyNote
+} from "obsidian-daily-notes-interface";
 
 
 class Processor {
@@ -218,6 +225,75 @@ class Processor {
 				throw new Error("No valid TaskFormat selected");
 		}
 		return taskParser;
+	}
+
+	async pushTasksFromVaultToVikunja(localTasks: PluginTask[], vikunjaTasks: ModelsTask[]) {
+		const tasksToPushToVikunja = localTasks.filter(task => !vikunjaTasks.find(vikunjaTask => vikunjaTask.id === task.task.id));
+		if (this.plugin.settings.debugging) console.log("Step CreateTask: Pushing tasks to vikunja", tasksToPushToVikunja);
+		const createdTasksInVikunja = await this.plugin.tasksApi.createTasks(tasksToPushToVikunja.map(task => task.task));
+		if (this.plugin.settings.debugging) console.log("Step CreateTask: Created tasks in vikunja", createdTasksInVikunja);
+
+		let tasksToUpdateInVault = [];
+
+		for (const task of tasksToPushToVikunja) {
+			const createdTask = createdTasksInVikunja.find((vikunjaTask: ModelsTask) => vikunjaTask.title === task.task.title);
+			if (!createdTask) {
+				continue;
+			}
+			task.task = createdTask;
+			tasksToUpdateInVault.push(task);
+		}
+
+		for (const task of tasksToUpdateInVault) {
+			if (this.plugin.settings.debugging) console.log("Step CreateTask: Updating task in vault", task);
+			await this.updateToVault(task);
+		}
+	}
+
+	async pullTasksFromVikunjaToVault(localTasks: PluginTask[], vikunjaTasks: ModelsTask[]) {
+		if (this.plugin.settings.debugging) console.log("Step CreateTask: Pulling tasks from vikunja to vault, vault tasks", localTasks, "vikunja tasks", vikunjaTasks);
+
+		const tasksToPushToVault = vikunjaTasks.filter(task => !localTasks.find(vaultTask => vaultTask.task.id === task.id));
+		if (this.plugin.settings.debugging) console.log("Step CreateTask: Pushing tasks to vault", tasksToPushToVault);
+
+		const createdTasksInVault: PluginTask[] = [];
+		for (const task of tasksToPushToVault) {
+			let file: TFile;
+			const chosenFile = this.app.vault.getFileByPath(this.plugin.settings.chosenOutputFile);
+			// FIXME This should be the date of the vikunja created date, so the task is created in the correct daily note
+			const date = moment();
+			const dailies = getAllDailyNotes()
+
+			switch (this.plugin.settings.chooseOutputFile) {
+				case chooseOutputFile.File:
+					if (!chosenFile) throw new Error("Output file not found");
+					file = chosenFile;
+					break;
+				case chooseOutputFile.DailyNote:
+					if (!appHasDailyNotesPluginLoaded()) {
+						new Notice("Daily notes core plugin is not loaded. So we cannot create daily note. Please install daily notes core plugin. Interrupt now.")
+						continue;
+					}
+
+					file = getDailyNote(date, dailies)
+					if (file == null) {
+						file = await createDailyNote(date)
+					}
+					break;
+				default:
+					throw new Error("No valid chooseOutputFile selected");
+			}
+			const pluginTask: PluginTask = {
+				file: file,
+				lineno: 0,
+				task: task
+			};
+			createdTasksInVault.push(pluginTask);
+		}
+
+		for (const task of createdTasksInVault) {
+			await this.saveToVault(task);
+		}
 	}
 
 }

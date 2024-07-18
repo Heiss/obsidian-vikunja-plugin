@@ -91,6 +91,13 @@ export default class VikunjaPlugin extends Plugin {
 			}
 		});
 		this.addCommand({
+			id: 'vikunja-pull-tasks',
+			name: 'Pull tasks from Vikunja',
+			callback: async () => {
+				await this.commands.pullTasksFromVikunja();
+			}
+		})
+		this.addCommand({
 			id: 'vikunja-move-tasks-to-default-project',
 			name: 'Move all tasks to default project',
 			callback: async () => {
