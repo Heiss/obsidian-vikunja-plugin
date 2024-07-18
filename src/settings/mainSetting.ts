@@ -32,7 +32,7 @@ export interface VikunjaPluginSettings {
 export const DEFAULT_SETTINGS: VikunjaPluginSettings = {
 	mySetting: 'default',
 	vikunjaAccessToken: "ABXYZ",
-	vikunjaHost: "https://try.vikunja.io/api/v1",
+	vikunjaHost: "https://try.vikunja.io",
 	useTasksFormat: supportedTasksPluginsFormat.Emoji,
 	chooseOutputFile: chooseOutputFile.DailyNote,
 	chosenOutputFile: "",
@@ -212,7 +212,7 @@ export class MainSetting extends PluginSettingTab {
 
 					this.plugin.settings.vikunjaHost = value;
 					await this.plugin.saveSettings();
-					this.plugin.tasksApi.init();
+					this.resetApis();
 				}));
 
 		new Setting(containerEl)
@@ -223,8 +223,7 @@ export class MainSetting extends PluginSettingTab {
 				.onChange(async (value: string) => {
 					this.plugin.settings.vikunjaAccessToken = value;
 					await this.plugin.saveSettings();
-					this.plugin.tasksApi.init();
-					// TODO: Implement an event to reload API configurations
+					this.resetApis();
 				}));
 
 		new Setting(containerEl)
@@ -496,7 +495,6 @@ export class MainSetting extends PluginSettingTab {
 				));
 	}
 
-
 	async loadApi() {
 		this.projects = await this.projectsApi.getAllProjects();
 
@@ -507,5 +505,12 @@ export class MainSetting extends PluginSettingTab {
 		if (this.plugin.settings.debugging) console.log(`SettingsTab: Default project set to:`, this.projects[0].id);
 
 		this.display();
+	}
+
+	private resetApis() {
+		// TODO: Implement an event to reload API configurations
+		this.plugin.tasksApi.init();
+		this.projectsApi.init();
+		this.plugin.labelsApi.init();
 	}
 }
