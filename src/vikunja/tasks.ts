@@ -5,6 +5,7 @@ import {
 	ModelsTask,
 	ProjectsIdTasksPutRequest,
 	TaskApi,
+	TasksAllGetRequest,
 	TasksIdDeleteRequest,
 	TasksIdGetRequest,
 	TasksIdPostRequest,

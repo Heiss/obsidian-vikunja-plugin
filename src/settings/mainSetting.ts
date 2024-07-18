@@ -25,7 +25,8 @@ export interface VikunjaPluginSettings {
 	enableCron: boolean,
 	cronInterval: number,
 	updateOnStartup: boolean,
-	updateOnCursorMovement: boolean
+	updateOnCursorMovement: boolean,
+	pullTasksOnlyFromDefaultProject: boolean
 }
 
 export const DEFAULT_SETTINGS: VikunjaPluginSettings = {
@@ -48,10 +49,11 @@ export const DEFAULT_SETTINGS: VikunjaPluginSettings = {
 	enableCron: false,
 	cronInterval: 500,
 	updateOnStartup: false,
-	updateOnCursorMovement: false
+	updateOnCursorMovement: false,
+	pullTasksOnlyFromDefaultProject: false
 }
 
-export class SettingTab extends PluginSettingTab {
+export class MainSetting extends PluginSettingTab {
 	plugin: VikunjaPlugin;
 	projectsApi: Projects;
 	projects: ModelsProject[] = [];
@@ -409,45 +411,13 @@ export class SettingTab extends PluginSettingTab {
 		}
 
 		if (this.projects.length === 0) {
-			new Setting(containerEl).setName("Loading projects...").setDesc("Please wait until the projects are loaded. If this message still there after a few seconds, please check your Vikunja Host and Access Token. Enable debugging and check the console for more information.");
+			new Setting(containerEl)
+				.setName("Loading projects...")
+				.setDesc("Please wait until the projects are loaded. If this message still there after a few seconds, please check your Vikunja Host and Access Token. Enable debugging and check the console for more information.");
 			this.loadApi().then(_r => {
 			});
 			return;
 		}
-
-		new Setting(containerEl)
-			.setName("Select default project")
-			.setDesc("This project will be used to place new tasks created by this plugin.")
-			.addDropdown(async dropdown => {
-					if (this.plugin.settings.debugging) {
-						console.log(`SettingsTab: Got projects:`, this.projects);
-					}
-
-					for (const project of this.projects) {
-						if (project.id === undefined || project.title === undefined) {
-							throw new Error("Project id or title is undefined");
-						}
-						dropdown.addOption(project.id.toString(), project.title);
-					}
-
-					dropdown.setValue(this.plugin.settings.defaultVikunjaProject.toString());
-
-					dropdown.onChange(async (value: string) => {
-						this.plugin.settings.defaultVikunjaProject = parseInt(value);
-						if (this.plugin.settings.debugging) console.log(`SettingsTab: Selected Vikunja project:`, this.plugin.settings.defaultVikunjaProject);
-						await this.plugin.saveSettings();
-					});
-				}
-			)
-		new Setting(containerEl)
-			.setName("Move all tasks to selected default project")
-			.setDesc("This will move all tasks from Vault to the selected default project in Vikunja. This will not delete any tasks in Vikunja, but only move them to the selected project. This helps, if you make a wrong decision in the past. This does not create any tasks in Vikunja.")
-			.addButton(button => button
-				.setButtonText("Move all tasks")
-				.onClick(async () => {
-						await this.plugin.commands.moveAllTasksToDefaultProject();
-					}
-				));
 
 
 		new Setting(containerEl)
@@ -479,6 +449,51 @@ export class SettingTab extends PluginSettingTab {
 						await this.plugin.saveSettings();
 					}));
 
+		new Setting(containerEl)
+			.setName("Select default project")
+			.setDesc("This project will be used to place new tasks created by this plugin.")
+			.addDropdown(async dropdown => {
+					if (this.plugin.settings.debugging) {
+						console.log(`SettingsTab: Got projects:`, this.projects);
+					}
+
+					for (const project of this.projects) {
+						if (project.id === undefined || project.title === undefined) {
+							throw new Error("Project id or title is undefined");
+						}
+						dropdown.addOption(project.id.toString(), project.title);
+					}
+
+					dropdown.setValue(this.plugin.settings.defaultVikunjaProject.toString());
+
+					dropdown.onChange(async (value: string) => {
+						this.plugin.settings.defaultVikunjaProject = parseInt(value);
+						if (this.plugin.settings.debugging) console.log(`SettingsTab: Selected Vikunja project:`, this.plugin.settings.defaultVikunjaProject);
+						await this.plugin.saveSettings();
+					});
+				}
+			)
+
+		new Setting(containerEl)
+			.setName("Pull tasks only from default project")
+			.setDesc("If enabled, only tasks from the default project will be pulled from Vikunja. Useful, if you use Vikunja with several apps or different projects and Obsidian is only one of them. Beware: If you select that labels should be deleted in vikunja, if not found in vault, this will sync all labels regardless of projects.")
+			.addToggle(toggle =>
+				toggle
+					.setValue(this.plugin.settings.pullTasksOnlyFromDefaultProject)
+					.onChange(async (value: boolean) => {
+						this.plugin.settings.pullTasksOnlyFromDefaultProject = value;
+						await this.plugin.saveSettings();
+					}));
+
+		new Setting(containerEl)
+			.setName("Move all tasks to selected default project")
+			.setDesc("This will move all tasks from Vault to the selected default project in Vikunja. This will not delete any tasks in Vikunja, but only move them to the selected project. This helps, if you make a wrong decision in the past. This does not create any tasks in Vikunja.")
+			.addButton(button => button
+				.setButtonText("Move all tasks")
+				.onClick(async () => {
+						await this.plugin.commands.moveAllTasksToDefaultProject();
+					}
+				));
 	}
 
 

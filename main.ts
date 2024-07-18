@@ -1,5 +1,5 @@
 import {Notice, Plugin} from 'obsidian';
-import {DEFAULT_SETTINGS, SettingTab, VikunjaPluginSettings} from "./src/settings/settingTab";
+import {DEFAULT_SETTINGS, MainSetting, VikunjaPluginSettings} from "./src/settings/mainSetting";
 import {Tasks} from "./src/vikunja/tasks";
 import {Processor} from "./src/processing/processor";
 import {UserUser} from "./vikunja_sdk";
@@ -63,7 +63,7 @@ export default class VikunjaPlugin extends Plugin {
 		this.setupCommands();
 
 		// This adds a settings tab so the user can configure various aspects of the plugin
-		this.addSettingTab(new SettingTab(this.app, this));
+		this.addSettingTab(new MainSetting(this.app, this));
 
 		this.registerDomEvent(document, 'keyup', this.handleUpDownEvent.bind(this));
 		this.registerDomEvent(document, 'click', this.handleClickEvent.bind(this));

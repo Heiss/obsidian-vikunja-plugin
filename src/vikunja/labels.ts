@@ -38,7 +38,11 @@ class Label {
 			task: id,
 			label: modelLabel
 		};
-		await this.labelsApi.tasksTaskLabelsPut(params);
+		try {
+			await this.labelsApi.tasksTaskLabelsPut(params);
+		} catch (e) {
+			console.error("Error adding label to task", e);
+		}
 	}
 
 	init() {
@@ -77,12 +81,13 @@ class Label {
 		return Promise.all(labels.map(label => this.createLabel(label)));
 	}
 
-	async deleteLabel(labelId: number): Promise<ModelsLabel> {
+	async deleteLabel(labelId: number) {
 		if (this.plugin.settings.debugging) console.log("LabelsAPI: Deleting label", labelId);
 		const param: LabelsIdDeleteRequest = {
 			id: labelId,
 		};
-		return await this.labelsApi.labelsIdDelete(param);
+		await this.labelsApi.labelsIdDelete(param);
+		if (this.plugin.settings.debugging) console.log("LabelsAPI: Deleted label", labelId);
 	}
 
 	async updateLabel(label: ModelsLabel): Promise<ModelsLabel> {
@@ -94,26 +99,27 @@ class Label {
 		return this.labelsApi.labelsIdPut(param);
 	}
 
-	async getAndCreateLabels(labels: ModelsLabel[]): Promise<ModelsLabel[]> {
+	async getOrCreateLabels(labels: ModelsLabel[]): Promise<ModelsLabel[]> {
 		if (this.plugin.settings.debugging) console.log("LabelsAPI: Get or create labels", labels);
 		// FIXME This call will be placed everytime for every task. It should be cached or optimized away.
 		const allLabels = await this.getLabels();
-		let createdLabels: ModelsLabel[] = [];
+		let createdLabels = new Map<number, ModelsLabel>();
 
 		for (const label of labels) {
 			const vikunjaLabel = allLabels.find(l => l.title === label.title);
-			if (vikunjaLabel) {
-				createdLabels.push(vikunjaLabel);
+			if (vikunjaLabel !== undefined && vikunjaLabel.id !== undefined && createdLabels.get(vikunjaLabel.id) === undefined) {
+				createdLabels.set(vikunjaLabel.id, vikunjaLabel);
 				continue;
 			}
 
 			if (this.plugin.settings.debugging) console.log("LabelsAPI: Create label in vikunja", label);
 			const createdLabel = await this.createLabel(label);
-			createdLabels.push(createdLabel);
+			if (!createdLabel.id) throw new Error("Label id for freshly created Label is not defined");
+			createdLabels.set(createdLabel.id, createdLabel);
 		}
 
 		if (this.plugin.settings.debugging) console.log("LabelsAPI: Created labels", createdLabels);
-		return createdLabels;
+		return Array.from(createdLabels.values());
 	}
 
 	async deleteLabels(labels: ModelsLabel[]) {

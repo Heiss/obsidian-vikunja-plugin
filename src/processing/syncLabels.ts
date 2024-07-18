@@ -17,7 +17,6 @@ class SyncLabels implements IAutomatonSteps {
 		await this.removeLabelsInVikunjaIfNotInVault(localTasks, vikunjaTasks);
 		const localTasksWithLabels: PluginTask[] = await this.createLabels(localTasks);
 
-		// FIXME there is still a bug with previously added labels... something is empty in devlog
 		for (const task of localTasksWithLabels) {
 			if (!task.task) throw new Error("Task is not defined");
 			if (!task.task.id) throw new Error("Task id is not defined");
@@ -26,11 +25,7 @@ class SyncLabels implements IAutomatonSteps {
 
 			for (const label of task.task.labels) {
 				if (this.plugin.settings.debugging) console.log("Step SyncLabels: Adding label to task ", taskId, " in Vikunja", label);
-				try {
-					await this.plugin.labelsApi.addLabelToTask(taskId, label);
-				} catch (e) {
-					console.error("Error adding label to task", e);
-				}
+				await this.plugin.labelsApi.addLabelToTask(taskId, label);
 			}
 		}
 
@@ -43,16 +38,19 @@ class SyncLabels implements IAutomatonSteps {
 			if (this.plugin.settings.debugging) console.log("Step SyncLabels: Not deleting labels in vikunja if ID not found in vault");
 			return;
 		}
+		// FIXME This call will be placed everytime for every task. It should be cached or optimized away.
 		const allLabels = await this.plugin.labelsApi.getLabels();
 		const usedLabels = localTasks.flatMap(task => task.task.labels ?? []);
+		let foundLabels = new Map<number, ModelsTask>();
 
 		for (const label of allLabels) {
-			if (usedLabels.find(usedLabel => usedLabel.title === label.title)) {
+			if (!label.id) throw new Error("Label id is not defined");
+			if (usedLabels.find(usedLabel => usedLabel.title === label.title) && foundLabels.get(label.id) === undefined) {
+				foundLabels.set(label.id, label);
 				continue;
 			}
 
 			if (this.plugin.settings.debugging) console.log("Step SyncLabels: Deleting label in vikunja", label);
-			if (!label.id) throw new Error("Label id is not defined");
 			await this.plugin.labelsApi.deleteLabel(label.id);
 		}
 	}
@@ -64,7 +62,7 @@ class SyncLabels implements IAutomatonSteps {
 					if (!task.task) throw new Error("Task is not defined");
 					if (!task.task.labels) return task;
 
-					task.task.labels = await this.plugin.labelsApi.getAndCreateLabels(task.task.labels);
+					task.task.labels = await this.plugin.labelsApi.getOrCreateLabels(task.task.labels);
 					if (this.plugin.settings.debugging) console.log("Step SyncLabels: Preparing labels for local tasks for vikunja update", task);
 					return task;
 				}
