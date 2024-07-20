@@ -21,6 +21,8 @@ The experience with this plugin is a lot like the excellent plugins for todoist:
 - [Ultimate Todoist Sync for Obsidian Plugin](https://github.com/HeroBlackInk/ultimate-todoist-sync-for-obsidian)
 - [Obsidian Todoist Plugin](https://github.com/jamiebrynes7/obsidian-todoist-plugin)
 
+Supported Vikunja API: v0.24.1
+
 ## Features
 
 Every feature prioritizes the Obsidian side. If a task is updated in both systems, the Obsidian task will be the one who

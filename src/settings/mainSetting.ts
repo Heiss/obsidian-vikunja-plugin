@@ -2,7 +2,7 @@ import {App, Notice, PluginSettingTab, Setting} from "obsidian";
 import VikunjaPlugin from "../../main";
 import {Projects} from "../vikunja/projects";
 import {backendToFindTasks, chooseOutputFile, supportedTasksPluginsFormat} from "../enums";
-import {ModelsProject} from "../../vikunja_sdk";
+import {ModelsProject, ModelsProjectView} from "../../vikunja_sdk";
 import {appHasDailyNotesPluginLoaded} from "obsidian-daily-notes-interface";
 
 export interface VikunjaPluginSettings {
@@ -26,7 +26,10 @@ export interface VikunjaPluginSettings {
 	cronInterval: number,
 	updateOnStartup: boolean,
 	updateOnCursorMovement: boolean,
-	pullTasksOnlyFromDefaultProject: boolean
+	pullTasksOnlyFromDefaultProject: boolean,
+	availableViews: ModelsProjectView[],
+	selectedView: number,
+	selectBucketForDoneTasks: number,
 }
 
 export const DEFAULT_SETTINGS: VikunjaPluginSettings = {
@@ -50,7 +53,10 @@ export const DEFAULT_SETTINGS: VikunjaPluginSettings = {
 	cronInterval: 500,
 	updateOnStartup: false,
 	updateOnCursorMovement: false,
-	pullTasksOnlyFromDefaultProject: false
+	pullTasksOnlyFromDefaultProject: false,
+	availableViews: [],
+	selectedView: 0,
+	selectBucketForDoneTasks: 0,
 }
 
 export class MainSetting extends PluginSettingTab {
@@ -468,10 +474,48 @@ export class MainSetting extends PluginSettingTab {
 					dropdown.onChange(async (value: string) => {
 						this.plugin.settings.defaultVikunjaProject = parseInt(value);
 						if (this.plugin.settings.debugging) console.log(`SettingsTab: Selected Vikunja project:`, this.plugin.settings.defaultVikunjaProject);
+
+						this.plugin.settings.availableViews = await this.projectsApi.getViewsByProjectId(this.plugin.settings.defaultVikunjaProject);
+						if (this.plugin.settings.debugging) console.log(`SettingsTab: Available views:`, this.plugin.settings.availableViews);
+
+						if (this.plugin.settings.availableViews.length === 1) {
+							const id = this.plugin.settings.availableViews[0].id;
+							if (id === undefined) throw new Error("View id is undefined");
+							this.plugin.settings.selectedView = id;
+							this.plugin.settings.selectBucketForDoneTasks = await this.projectsApi.getDoneBucketIdFromKanbanView(this.plugin.settings.defaultVikunjaProject);
+							if (this.plugin.settings.debugging) console.log(`SettingsTab: Done bucket set to:`, this.plugin.settings.selectBucketForDoneTasks);
+						}
 						await this.plugin.saveSettings();
+						this.display();
 					});
 				}
 			)
+
+		if (this.plugin.settings.availableViews.length > 1) {
+			new Setting(containerEl)
+				.setName("Select bucket")
+				.setDesc("Because vikunja does not move done tasks to the correct bucket, you have to select the bucket where the done tasks are placed, so this plugin can do it for you.")
+				.addDropdown(dropdown => {
+					let i = 0;
+					for (const view of this.plugin.settings.availableViews) {
+						if (view.id === undefined || view.title === undefined) {
+							throw new Error("View id or title is undefined");
+						}
+						dropdown.addOption((i++).toString(), view.title);
+					}
+
+					dropdown.setValue(this.plugin.settings.selectedView.toString());
+
+					dropdown.onChange(async (value: string) => {
+						this.plugin.settings.selectedView = parseInt(value);
+						if (this.plugin.settings.debugging) console.log(`SettingsTab: Selected Vikunja bucket:`, this.plugin.settings.selectedView);
+
+						this.plugin.settings.selectBucketForDoneTasks = await this.projectsApi.getDoneBucketIdFromKanbanView(this.plugin.settings.defaultVikunjaProject);
+						if (this.plugin.settings.debugging) console.log(`SettingsTab: Done bucket set to:`, this.plugin.settings.selectBucketForDoneTasks);
+						await this.plugin.saveSettings();
+					});
+				});
+		}
 
 		new Setting(containerEl)
 			.setName("Pull tasks only from default project")

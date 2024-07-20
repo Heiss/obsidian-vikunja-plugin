@@ -48,6 +48,12 @@ export default class Commands {
 			foundProblem = true;
 		}
 
+		if (this.plugin.settings.availableViews.length === 0) {
+			new Notice("Vikunja Plugin: No views found. Please configure the plugin before using it.");
+			if (this.plugin.settings.debugging) console.log("Vikunja Plugin: No views found. Please configure the plugin before using it.");
+			foundProblem = true;
+		}
+
 		if (foundProblem) {
 			new Notice(
 				"Vikunja Plugin: Found problems. Please fix them in settings before using the plugin."

@@ -5,7 +5,6 @@ import {
 	ModelsTask,
 	ProjectsIdTasksPutRequest,
 	TaskApi,
-	TasksAllGetRequest,
 	TasksIdDeleteRequest,
 	TasksIdGetRequest,
 	TasksIdPostRequest,
@@ -37,6 +36,9 @@ class Tasks {
 	async updateTask(task: ModelsTask): Promise<ModelsTask> {
 		if (!task.id) throw new Error("TasksApi: Task id is not defined");
 		if (this.plugin.settings.debugging) console.log("TasksApi: Updating task", task.id, task);
+		if (task.done) {
+			task.bucketId = this.plugin.settings.selectBucketForDoneTasks;
+		}
 		const param: TasksIdPostRequest = {id: task.id, task: task};
 		return this.tasksApi.tasksIdPost(param);
 	}
@@ -54,6 +56,10 @@ class Tasks {
 		//  description =`[${filepath}](${url})`;
 		//  filepath could be an issue, because this information is dropped right before calling this method right now
 		//  Another problem is, that it cannot track moved tasks in the vault
+
+		if (task.done) {
+			task.bucketId = this.plugin.settings.selectBucketForDoneTasks;
+		}
 
 		const param: ProjectsIdTasksPutRequest = {
 			id: task.projectId,
@@ -141,6 +147,7 @@ class Tasks {
 
 	async updateProjectsIdInVikunja(tasks: ModelsTask[], projectId: number) {
 		if (this.plugin.settings.debugging) console.log("TasksApi: Updating project id in tasks", projectId);
+		// FIXME there is a bulkPost in tasksApi, use it instead of update any task separately
 		return await Promise.all(tasks.map(task => this.updateProjectIdInVikunja(task, projectId)));
 	}
 
@@ -150,6 +157,12 @@ class Tasks {
 
 		task.projectId = projectId;
 		await this.updateTask(task);
+	}
+
+	async updateBucketInVikunja(task: ModelsTask, bucketId: number) {
+		if (!task.id) throw new Error("TasksApi: Task id is not defined");
+		if (this.plugin.settings.debugging) console.log("TasksApi: Updating bucket in task", task.id, bucketId);
+
 	}
 
 	private async updateLabelsInVikunja(task: ModelsTask) {
