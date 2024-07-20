@@ -5,6 +5,7 @@ import {Processor} from "./src/processing/processor";
 import {UserUser} from "./vikunja_sdk";
 import {Label} from "./src/vikunja/labels";
 import Commands from "./src/commands";
+import {Projects} from "./src/vikunja/projects";
 
 // Remember to rename these classes and interfaces!
 
@@ -15,6 +16,7 @@ export default class VikunjaPlugin extends Plugin {
 	labelsApi: Label;
 	processor: Processor;
 	commands: Commands;
+	projectsApi: Projects;
 
 	async onload() {
 		await this.loadSettings();
@@ -24,6 +26,7 @@ export default class VikunjaPlugin extends Plugin {
 		this.tasksApi = new Tasks(this.app, this);
 		this.userObject = undefined;
 		this.labelsApi = new Label(this.app, this);
+		this.projectsApi = new Projects(this.app, this);
 
 		this.setupObsidian();
 		await this.processor.updateTasksOnStartup();

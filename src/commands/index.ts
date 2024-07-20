@@ -108,7 +108,7 @@ export default class Commands {
 
 				while (true) {
 					const tasks = await this.plugin.tasksApi.getAllTasks();
-					const labels = await this.plugin.labelsApi.getLabels()
+					const labels = this.plugin.labelsApi.getLabels()
 
 					if (tasks.length === 0 && labels.length === 0) {
 						if (this.plugin.settings.debugging) console.log("No tasks and labels found in Vikunja");

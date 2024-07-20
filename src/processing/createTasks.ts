@@ -1,14 +1,7 @@
 import {IAutomatonSteps, StepsOutput} from "./automaton";
 import {PluginTask} from "../vaultSearcher/vaultSearcher";
 import {ModelsTask} from "../../vikunja_sdk";
-import {App, moment, Notice, TFile} from "obsidian";
-import {
-	appHasDailyNotesPluginLoaded,
-	createDailyNote,
-	getAllDailyNotes,
-	getDailyNote
-} from "obsidian-daily-notes-interface";
-import {chooseOutputFile} from "../enums";
+import {App} from "obsidian";
 import VikunjaPlugin from "../../main";
 import {Processor} from "./processor";
 
@@ -25,12 +18,10 @@ class CreateTasks implements IAutomatonSteps {
 
 	async step(localTasks: PluginTask[], vikunjaTasks: ModelsTask[]): Promise<StepsOutput> {
 		await this.createTasks(localTasks, vikunjaTasks);
-
 		return {localTasks, vikunjaTasks};
 	}
 
 	private async createTasks(localTasks: PluginTask[], vikunjaTasks: ModelsTask[]) {
-
 		if (this.plugin.settings.debugging) console.log("Step CreateTask: Creating tasks in Vikunja and vault", localTasks, vikunjaTasks);
 		await this.processor.pullTasksFromVikunjaToVault(localTasks, vikunjaTasks);
 		await this.processor.pushTasksFromVaultToVikunja(localTasks, vikunjaTasks);

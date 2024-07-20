@@ -1,6 +1,5 @@
 import {App, Notice, PluginSettingTab, Setting} from "obsidian";
 import VikunjaPlugin from "../../main";
-import {Projects} from "../vikunja/projects";
 import {backendToFindTasks, chooseOutputFile, supportedTasksPluginsFormat} from "../enums";
 import {ModelsProject, ModelsProjectView} from "../../vikunja_sdk";
 import {appHasDailyNotesPluginLoaded} from "obsidian-daily-notes-interface";
@@ -61,13 +60,11 @@ export const DEFAULT_SETTINGS: VikunjaPluginSettings = {
 
 export class MainSetting extends PluginSettingTab {
 	plugin: VikunjaPlugin;
-	projectsApi: Projects;
 	projects: ModelsProject[] = [];
 
 	constructor(app: App, plugin: VikunjaPlugin) {
 		super(app, plugin);
 		this.plugin = plugin;
-		this.projectsApi = new Projects(app, plugin);
 	}
 
 	display(): void {
@@ -475,14 +472,14 @@ export class MainSetting extends PluginSettingTab {
 						this.plugin.settings.defaultVikunjaProject = parseInt(value);
 						if (this.plugin.settings.debugging) console.log(`SettingsTab: Selected Vikunja project:`, this.plugin.settings.defaultVikunjaProject);
 
-						this.plugin.settings.availableViews = await this.projectsApi.getViewsByProjectId(this.plugin.settings.defaultVikunjaProject);
+						this.plugin.settings.availableViews = await this.plugin.projectsApi.getViewsByProjectId(this.plugin.settings.defaultVikunjaProject);
 						if (this.plugin.settings.debugging) console.log(`SettingsTab: Available views:`, this.plugin.settings.availableViews);
 
 						if (this.plugin.settings.availableViews.length === 1) {
 							const id = this.plugin.settings.availableViews[0].id;
 							if (id === undefined) throw new Error("View id is undefined");
 							this.plugin.settings.selectedView = id;
-							this.plugin.settings.selectBucketForDoneTasks = await this.projectsApi.getDoneBucketIdFromKanbanView(this.plugin.settings.defaultVikunjaProject);
+							this.plugin.settings.selectBucketForDoneTasks = await this.plugin.projectsApi.getDoneBucketIdFromKanbanView(this.plugin.settings.defaultVikunjaProject);
 							if (this.plugin.settings.debugging) console.log(`SettingsTab: Done bucket set to:`, this.plugin.settings.selectBucketForDoneTasks);
 						}
 						await this.plugin.saveSettings();
@@ -510,7 +507,7 @@ export class MainSetting extends PluginSettingTab {
 						this.plugin.settings.selectedView = parseInt(value);
 						if (this.plugin.settings.debugging) console.log(`SettingsTab: Selected Vikunja bucket:`, this.plugin.settings.selectedView);
 
-						this.plugin.settings.selectBucketForDoneTasks = await this.projectsApi.getDoneBucketIdFromKanbanView(this.plugin.settings.defaultVikunjaProject);
+						this.plugin.settings.selectBucketForDoneTasks = await this.plugin.projectsApi.getDoneBucketIdFromKanbanView(this.plugin.settings.defaultVikunjaProject);
 						if (this.plugin.settings.debugging) console.log(`SettingsTab: Done bucket set to:`, this.plugin.settings.selectBucketForDoneTasks);
 						await this.plugin.saveSettings();
 					});
@@ -540,7 +537,7 @@ export class MainSetting extends PluginSettingTab {
 	}
 
 	async loadApi() {
-		this.projects = await this.projectsApi.getAllProjects();
+		this.projects = await this.plugin.projectsApi.getAllProjects();
 
 		// Set default project if not set
 		if (this.projects.length > 0 && this.plugin.settings.defaultVikunjaProject === null && this.projects[0] !== undefined && this.projects[0].id !== undefined) {
@@ -554,7 +551,7 @@ export class MainSetting extends PluginSettingTab {
 	private resetApis() {
 		// TODO: Implement an event to reload API configurations
 		this.plugin.tasksApi.init();
-		this.projectsApi.init();
+		this.plugin.projectsApi.init();
 		this.plugin.labelsApi.init();
 	}
 }

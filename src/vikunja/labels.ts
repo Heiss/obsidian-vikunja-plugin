@@ -7,42 +7,16 @@ import {
 	LabelsIdPutRequest,
 	LabelsPutRequest,
 	ModelsLabel,
-	ModelsLabelTask,
-	TasksTaskIDLabelsBulkPostRequest,
-	TasksTaskLabelsPutRequest,
 } from "../../vikunja_sdk";
 
 class Label {
 	plugin: VikunjaPlugin;
 	labelsApi: LabelsApi;
+	labelsMap: Map<string, ModelsLabel>;
 
 	constructor(app: App, plugin: VikunjaPlugin) {
 		this.plugin = plugin;
 		this.init();
-	}
-
-	async addLabelsToTask(id: number, labels: ModelsLabel[]) {
-
-		const params: TasksTaskIDLabelsBulkPostRequest = {
-			taskID: id,
-			label: {labels}
-		};
-		await this.labelsApi.tasksTaskIDLabelsBulkPost(params);
-	}
-
-	async addLabelToTask(id: number, label: ModelsLabel) {
-		const modelLabel: ModelsLabelTask = {
-			labelId: label.id,
-		};
-		const params: TasksTaskLabelsPutRequest = {
-			task: id,
-			label: modelLabel
-		};
-		try {
-			await this.labelsApi.tasksTaskLabelsPut(params);
-		} catch (e) {
-			console.error("Error adding label to task", e);
-		}
 	}
 
 	init() {
@@ -51,34 +25,60 @@ class Label {
 			apiKey: "Bearer " + this.plugin.settings.vikunjaAccessToken,
 		});
 		this.labelsApi = new LabelsApi(configuration);
+		this.labelsMap = new Map<string, ModelsLabel>();
+		this.loadLabels().then();
 	}
 
-	async getLabels(): Promise<ModelsLabel[]> {
-		let allLabels: ModelsLabel[] = [];
-		try {
-			allLabels = await this.labelsApi.labelsGet();
-		} catch (e) {
-			// There is a bug in Vikunja API that returns null instead of an empty array
-			console.error("LabelsAPI: Could not get labels", e);
-		}
-		return allLabels;
+	getLabels(): ModelsLabel[] {
+		return Array.from(this.labelsMap.values());
 	}
 
-	async findLabelByTitle(title: string): Promise<ModelsLabel | undefined> {
-		const labels = await this.getLabels();
-		return labels.find(label => label.title === title);
+	async findLabelByTitle(title: string): Promise<ModelsLabel> {
+		const labels = this.labelsMap.get(title);
+		if (labels === undefined) throw new Error("Label not found");
+		return labels;
 	}
 
 	async createLabel(label: ModelsLabel): Promise<ModelsLabel> {
 		if (this.plugin.settings.debugging) console.log("LabelsAPI: Creating label", label);
+		if (!label.title) throw new Error("Label title is required to create label");
+		if (this.labelsMap.has(label.title)) throw new Error("Label already exists");
+
 		const param: LabelsPutRequest = {
 			label: label,
 		};
-		return await this.labelsApi.labelsPut(param);
+		const createdLabel = await this.labelsApi.labelsPut(param);
+
+		if (createdLabel.title === undefined) throw new Error("Label title is not defined");
+		this.labelsMap.set(createdLabel.title, createdLabel);
+		if (this.plugin.settings.debugging) console.log("LabelsAPI: Created label", createdLabel);
+
+		return createdLabel;
 	}
 
 	async createLabels(labels: ModelsLabel[]): Promise<ModelsLabel[]> {
 		return Promise.all(labels.map(label => this.createLabel(label)));
+	}
+
+	async getOrCreateLabels(labels: ModelsLabel[]): Promise<ModelsLabel[]> {
+		const labelsInVikunjaExisting = labels.filter(label => label.title && this.labelsMap.has(label.title));
+		const labelsInVikunjaMissing = labels.filter(label => label.title && !this.labelsMap.has(label.title));
+
+		const createdLabel = await Promise.all(labelsInVikunjaMissing.map(label => this.createLabel(label)));
+		if (this.plugin.settings.debugging) console.log("LabelsAPI: Created labels", createdLabel);
+		const concatLabels = labelsInVikunjaExisting.concat(createdLabel);
+		if (this.plugin.settings.debugging) console.log("LabelsAPI: Returning labels", concatLabels);
+		// @ts-ignore
+		const labelsWithId: ModelsLabel[] = concatLabels.map(label => this.labelsMap.get(label.title)).filter(label => label !== undefined);
+		if (this.plugin.settings.debugging) console.log("LabelsAPI: Returning labels with id", labelsWithId);
+		return labelsWithId;
+	}
+
+	async getOrCreateLabel(label: ModelsLabel): Promise<ModelsLabel> {
+		if (!label.title) throw new Error("Label title is required to get or create label");
+		const existingLabel = this.labelsMap.get(label.title);
+		if (existingLabel) return existingLabel;
+		return await this.createLabel(label);
 	}
 
 	async deleteLabel(labelId: number) {
@@ -92,34 +92,15 @@ class Label {
 
 	async updateLabel(label: ModelsLabel): Promise<ModelsLabel> {
 		if (!label.id) throw new Error("Label id is required to update label");
+		if (!label.title) throw new Error("Label title is required to update label");
+
 		const param: LabelsIdPutRequest = {
 			id: label.id,
 			label: label,
 		};
+
+		this.labelsMap.set(label.title, label);
 		return this.labelsApi.labelsIdPut(param);
-	}
-
-	async getOrCreateLabels(labels: ModelsLabel[]): Promise<ModelsLabel[]> {
-		if (this.plugin.settings.debugging) console.log("LabelsAPI: Get or create labels", labels);
-		// FIXME This call will be placed everytime for every task. It should be cached or optimized away.
-		const allLabels = await this.getLabels();
-		let createdLabels = new Map<number, ModelsLabel>();
-
-		for (const label of labels) {
-			const vikunjaLabel = allLabels.find(l => l.title === label.title);
-			if (vikunjaLabel !== undefined && vikunjaLabel.id !== undefined && createdLabels.get(vikunjaLabel.id) === undefined) {
-				createdLabels.set(vikunjaLabel.id, vikunjaLabel);
-				continue;
-			}
-
-			if (this.plugin.settings.debugging) console.log("LabelsAPI: Create label in vikunja", label);
-			const createdLabel = await this.createLabel(label);
-			if (!createdLabel.id) throw new Error("Label id for freshly created Label is not defined");
-			createdLabels.set(createdLabel.id, createdLabel);
-		}
-
-		if (this.plugin.settings.debugging) console.log("LabelsAPI: Created labels", createdLabels);
-		return Array.from(createdLabels.values());
 	}
 
 	async deleteLabels(labels: ModelsLabel[]) {
@@ -127,6 +108,22 @@ class Label {
 			if (!label.id) throw new Error("Label id is required to delete label");
 			await this.deleteLabel(label.id);
 		}
+	}
+
+	private async loadLabels(): Promise<ModelsLabel[]> {
+		this.labelsMap.clear();
+		let allLabels: ModelsLabel[] = [];
+		try {
+			allLabels = await this.labelsApi.labelsGet();
+		} catch (e) {
+			// There is a bug in Vikunja API that returns null instead of an empty array
+			console.error("LabelsAPI: Could not get labels", e);
+		}
+		allLabels.forEach(label => {
+			if (label.title === undefined) throw new Error("Label title is not defined");
+			this.labelsMap.set(label.title, label);
+		});
+		return allLabels;
 	}
 }
 

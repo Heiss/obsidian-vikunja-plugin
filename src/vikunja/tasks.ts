@@ -39,6 +39,9 @@ class Tasks {
 		if (task.done) {
 			task.bucketId = this.plugin.settings.selectBucketForDoneTasks;
 		}
+
+		await this.addLabelToTask(task);
+
 		const param: TasksIdPostRequest = {id: task.id, task: task};
 		return this.tasksApi.tasksIdPost(param);
 	}
@@ -97,24 +100,19 @@ class Tasks {
 		if (!task.labels) return;
 		if (this.plugin.settings.debugging) console.log("TasksApi: Adding labels to task", task.id, task.labels);
 
-		for (const label of task.labels) {
+		for (const label of await this.plugin.labelsApi.getOrCreateLabels(task.labels)) {
 			if (!label.title) continue;
 
-			let existingLabel = await this.plugin.labelsApi.findLabelByTitle(label.title);
-			if (!existingLabel) {
-				existingLabel = await this.plugin.labelsApi.createLabel(label);
-			}
-			if (!existingLabel.id) throw new Error("TasksApi: Label id cannot be defined");
-
 			const param: TasksTaskLabelsPutRequest = {
-				label: {labelId: existingLabel.id},
+				label: {labelId: label.id},
 				task: task.id
 			}
 
 			try {
+				if (this.plugin.settings.debugging) console.log("TasksApi: Adding label to task", param);
 				await this.plugin.labelsApi.labelsApi.tasksTaskLabelsPut(param);
 			} catch (error) {
-				console.error("Error adding label to task. Mostly it has already this label assigned.", error);
+				if (this.plugin.settings.debugging) console.error("Error adding label to task, mostly because it is already there", error);
 			}
 		}
 	}
@@ -163,15 +161,6 @@ class Tasks {
 		if (!task.id) throw new Error("TasksApi: Task id is not defined");
 		if (this.plugin.settings.debugging) console.log("TasksApi: Updating bucket in task", task.id, bucketId);
 
-	}
-
-	private async updateLabelsInVikunja(task: ModelsTask) {
-		try {
-			await this.addLabelToTask(task);
-			await this.deleteLabelFromTask(task);
-		} catch (error) {
-			console.error("Error updating labels in Vikunja", error);
-		}
 	}
 }
 
