@@ -81,13 +81,17 @@ class Label {
 		return await this.createLabel(label);
 	}
 
-	async deleteLabel(labelId: number) {
-		if (this.plugin.settings.debugging) console.log("LabelsAPI: Deleting label", labelId);
+	async deleteLabel(label: ModelsLabel) {
+		if (!label.id) throw new Error("Label id is required to delete label");
+		if (!label.title) throw new Error("Label title is required to delete label");
+
+		if (this.plugin.settings.debugging) console.log("LabelsAPI: Deleting label", label);
 		const param: LabelsIdDeleteRequest = {
-			id: labelId,
+			id: label.id,
 		};
 		await this.labelsApi.labelsIdDelete(param);
-		if (this.plugin.settings.debugging) console.log("LabelsAPI: Deleted label", labelId);
+		if (this.plugin.settings.debugging) console.log("LabelsAPI: Deleted label", label);
+		this.labelsMap.delete(label.title);
 	}
 
 	async updateLabel(label: ModelsLabel): Promise<ModelsLabel> {
@@ -106,11 +110,12 @@ class Label {
 	async deleteLabels(labels: ModelsLabel[]) {
 		for (const label of labels) {
 			if (!label.id) throw new Error("Label id is required to delete label");
-			await this.deleteLabel(label.id);
+			await this.deleteLabel(label);
 		}
 	}
 
-	private async loadLabels(): Promise<ModelsLabel[]> {
+	//Use with caution!!! Only use it in a place, where no other operations are currently running
+	async loadLabels(): Promise<ModelsLabel[]> {
 		this.labelsMap.clear();
 		let allLabels: ModelsLabel[] = [];
 		try {

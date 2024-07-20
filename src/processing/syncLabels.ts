@@ -26,7 +26,7 @@ class SyncLabels implements IAutomatonSteps {
 		const allLabels = this.plugin.labelsApi.getLabels();
 		const dedupAllLabels = allLabels.filter((label, index, self) => self.findIndex(l => l.title === label.title) === index);
 		// remove all duplicated labels
-		await Promise.all(allLabels.filter(label => dedupAllLabels.find(l => l.id === label.id) === undefined).map(label => label.id && this.plugin.labelsApi.deleteLabel(label.id)));
+		await Promise.all(allLabels.filter(label => dedupAllLabels.find(l => l.id === label.id) === undefined).map(label => label.id && this.plugin.labelsApi.deleteLabel(label)));
 
 		if (!this.plugin.settings.removeLabelsIfInVaultNotUsed) {
 			if (this.plugin.settings.debugging) console.log("Step SyncLabels: Not deleting labels in vikunja if ID not found in vault");
@@ -37,7 +37,7 @@ class SyncLabels implements IAutomatonSteps {
 
 		if (this.plugin.settings.debugging) console.log("Step SyncLabels: Deleting labels in Vikunja", labelsToDelete);
 		// remove all labels not used in vault
-		await Promise.all(labelsToDelete.map(label => label.id && this.plugin.labelsApi.deleteLabel(label.id)));
+		await Promise.all(labelsToDelete.map(label => label.id && this.plugin.labelsApi.deleteLabel(label)));
 	}
 
 	private async createLabels(localTasks: PluginTask[]): Promise<PluginTask[]> {

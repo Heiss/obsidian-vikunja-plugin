@@ -108,7 +108,7 @@ export default class Commands {
 
 				while (true) {
 					const tasks = await this.plugin.tasksApi.getAllTasks();
-					const labels = this.plugin.labelsApi.getLabels()
+					const labels = await this.plugin.labelsApi.labelsApi.labelsGet();
 
 					if (tasks.length === 0 && labels.length === 0) {
 						if (this.plugin.settings.debugging) console.log("No tasks and labels found in Vikunja");
@@ -123,8 +123,8 @@ export default class Commands {
 					await this.plugin.labelsApi.deleteLabels(labels);
 				}
 
-
 				if (this.plugin.settings.debugging) console.log("Resetting tasks in Vikunja done");
+				await this.plugin.labelsApi.loadLabels();
 				new Notice("Resetting tasks and labels in Vikunja done");
 			}
 		).open();
