@@ -4,21 +4,26 @@ import {
 	Configuration,
 	ModelsBucket,
 	ModelsProjectView,
-	ModelsProjectViewKind,
 	ModelsTask,
 	ProjectApi,
 	ProjectsIdViewsViewBucketsPutRequest,
 	ProjectsProjectViewsGetRequest,
 	ProjectsProjectViewsIdPostRequest
 } from "../../vikunja_sdk";
+import VikunjaAPI from "./VikunjaAPI";
 
-class Projects {
+class Projects implements VikunjaAPI {
 	plugin: VikunjaPlugin;
 	projectsApi: ProjectApi;
 
 	constructor(app: App, plugin: VikunjaPlugin) {
 		this.plugin = plugin;
 		this.init();
+	}
+
+	checkPermissions(): boolean {
+		// TODO: Implement this method
+		return true;
 	}
 
 	init() {
@@ -42,7 +47,7 @@ class Projects {
 			project: id
 		};
 		const views = await this.projectsApi.projectsProjectViewsGet(params);
-		if(this.plugin.settings.debugging) console.log("Found views", views);
+		if (this.plugin.settings.debugging) console.log("Found views", views);
 
 		// @ts-ignore
 		const kanbanViews = views.filter(view => view.viewKind === "kanban");

@@ -11,14 +11,20 @@ import {
 	TasksTaskLabelsLabelDeleteRequest,
 	TasksTaskLabelsPutRequest
 } from "../../vikunja_sdk";
+import VikunjaAPI from "./VikunjaAPI";
 
-class Tasks {
+class Tasks implements VikunjaAPI {
 	plugin: VikunjaPlugin;
 	tasksApi: TaskApi;
 
 	constructor(app: App, plugin: VikunjaPlugin) {
 		this.plugin = plugin;
 		this.init();
+	}
+
+	checkPermissions(): boolean {
+		// TODO: Implement this method
+		return true;
 	}
 
 	init() {

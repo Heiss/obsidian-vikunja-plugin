@@ -8,8 +8,9 @@ import {
 	LabelsPutRequest,
 	ModelsLabel,
 } from "../../vikunja_sdk";
+import VikunjaAPI from "./VikunjaAPI";
 
-class Label {
+class Label implements VikunjaAPI {
 	plugin: VikunjaPlugin;
 	labelsApi: LabelsApi;
 	labelsMap: Map<string, ModelsLabel>;
@@ -18,6 +19,11 @@ class Label {
 		this.plugin = plugin;
 		this.init();
 	}
+
+	checkPermissions(): boolean {
+		// TODO: Implement this method
+		return true;
+    }
 
 	init() {
 		const configuration = new Configuration({

@@ -5,6 +5,7 @@ import {getAPI} from "obsidian-dataview";
 import VikunjaPlugin from "../../main";
 import {PluginTask} from "../vaultSearcher/vaultSearcher";
 import {ConfirmModal} from "../modals/confirmModal";
+import VikunjaAPI from "../vikunja/VikunjaAPI";
 
 export default class Commands {
 	private plugin: VikunjaPlugin;
@@ -45,6 +46,13 @@ export default class Commands {
 		if (this.plugin.settings.backendToFindTasks === backendToFindTasks.Dataview && getAPI(this.app) === undefined) {
 			new Notice("Vikunja Plugin: Obsidian Dataview plugin is not loaded. Please install Obsidian Dataview plugin to use Dataview.");
 			if (this.plugin.settings.debugging) console.log("Vikunja Plugin: Obsidian Dataview plugin is not loaded. Please install Obsidian Dataview plugin to use Dataview.");
+			foundProblem = true;
+		}
+
+		const checkAPIs: VikunjaAPI[] = [this.plugin.labelsApi, this.plugin.tasksApi, this.plugin.projectsApi];
+		if (!checkAPIs.every(api => api.checkPermissions())) {
+			new Notice("Vikunja Plugin: Not sufficient permissions for Vikunja API. Please check the permissions in Vikunja Settings and create a new token.");
+			if (this.plugin.settings.debugging) console.log("Vikunja Plugin: Not sufficient permissions for Vikunja API. Please check the permissions in Vikunja Settings.");
 			foundProblem = true;
 		}
 

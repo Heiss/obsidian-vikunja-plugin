@@ -1,14 +1,20 @@
 import {App} from "obsidian";
 import VikunjaPlugin from "../../main";
 import {Configuration, UserApi, UserUser} from "../../vikunja_sdk";
+import VikunjaAPI from "./VikunjaAPI";
 
-class User {
+class User implements VikunjaAPI {
 	plugin: VikunjaPlugin;
 	userApi: UserApi;
 
 	constructor(app: App, plugin: VikunjaPlugin) {
 		this.plugin = plugin;
 		this.init();
+	}
+
+	checkPermissions(): boolean {
+		// TODO: Implement this method
+		return true;
 	}
 
 	init() {
