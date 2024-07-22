@@ -12,7 +12,9 @@ export class ConfirmModal extends Modal {
 	onOpen() {
 		const {contentEl} = this;
 
-		contentEl.createEl("h1", {text: "Are you sure to reset your vikunja instance?"});
+		contentEl.createEl("h1", {text: "Are you sure to reset your vikunja instance?"})
+
+		contentEl.createEl("p", {text: "This will delete all your tasks and labels. This action cannot be undone."})
 
 		new Setting(contentEl)
 			.setName("Enter 'yes' to confirm:")

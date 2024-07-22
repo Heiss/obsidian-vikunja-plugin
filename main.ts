@@ -22,18 +22,14 @@ export default class VikunjaPlugin extends Plugin {
 		await this.loadSettings();
 		this.commands = new Commands(this.app, this);
 
-		this.app.workspace.onLayoutReady(() => {
-			if (this.settings.debugging) console.log("Layout ready, check dependencies");
-			this.commands.checkDependencies();
-		});
-
-		this.tasksApi = new Tasks(this.app, this);
-		this.userObject = undefined;
-		this.labelsApi = new Label(this.app, this);
-		this.projectsApi = new Projects(this.app, this);
-
+		this.setupAPIs();
 		this.setupObsidian();
-		await this.processor.updateTasksOnStartup();
+
+		this.app.workspace.onLayoutReady(async () => {
+			if (this.settings.debugging) console.log("Layout ready, check dependencies and start syncing");
+			this.commands.checkDependencies();
+			await this.processor.updateTasksOnStartup();
+		});
 	}
 
 	onunload() {
@@ -47,7 +43,6 @@ export default class VikunjaPlugin extends Plugin {
 	async saveSettings() {
 		await this.saveData(this.settings);
 	}
-
 
 	async checkLastLineForUpdate() {
 		if (this.settings.debugging) console.log("Checking for task update");
@@ -86,6 +81,13 @@ export default class VikunjaPlugin extends Plugin {
 				},
 				this.settings.cronInterval * 1000)
 		);
+	}
+
+	private setupAPIs() {
+		this.tasksApi = new Tasks(this.app, this);
+		this.userObject = undefined;
+		this.labelsApi = new Label(this.app, this);
+		this.projectsApi = new Projects(this.app, this);
 	}
 
 	private setupCommands() {
