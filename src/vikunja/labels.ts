@@ -122,7 +122,9 @@ class Label {
 			allLabels = await this.labelsApi.labelsGet();
 		} catch (e) {
 			// There is a bug in Vikunja API that returns null instead of an empty array
-			console.error("LabelsAPI: Could not get labels", e);
+			if (e instanceof TypeError) console.info("LabelsAPI: No labels there");
+			else
+				console.error("LabelsAPI: Could not get labels", e);
 		}
 		allLabels.forEach(label => {
 			if (label.title === undefined) throw new Error("Label title is not defined");
