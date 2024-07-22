@@ -238,25 +238,8 @@ class Processor {
 
 	async pushTasksFromVaultToVikunja(localTasks: PluginTask[], vikunjaTasks: ModelsTask[]) {
 		const tasksToPushToVikunja = localTasks.filter(task => !vikunjaTasks.find(vikunjaTask => vikunjaTask.id === task.task.id));
-		if (this.plugin.settings.debugging) console.log("Step CreateTask: Pushing tasks to vikunja", tasksToPushToVikunja);
-		const createdTasksInVikunja = await this.plugin.tasksApi.createTasks(tasksToPushToVikunja.map(task => task.task));
-		if (this.plugin.settings.debugging) console.log("Step CreateTask: Created tasks in vikunja", createdTasksInVikunja);
-
-		let tasksToUpdateInVault = [];
-
-		for (const task of tasksToPushToVikunja) {
-			const createdTask = createdTasksInVikunja.find((vikunjaTask: ModelsTask) => vikunjaTask.title === task.task.title);
-			if (!createdTask) {
-				continue;
-			}
-			task.task = createdTask;
-			tasksToUpdateInVault.push(task);
-		}
-
-		for (const task of tasksToUpdateInVault) {
-			if (this.plugin.settings.debugging) console.log("Step CreateTask: Updating task in vault", task);
-			await this.updateToVault(task);
-		}
+		if (this.plugin.settings.debugging) console.log("Step CreateTask: Pushing tasks to Vikunja and updates in Vault")
+		await Promise.all(tasksToPushToVikunja.map(task => this.createTaskAndUpdateToVault(task)));
 	}
 
 	async pullTasksFromVikunjaToVault(localTasks: PluginTask[], vikunjaTasks: ModelsTask[]) {
@@ -303,6 +286,13 @@ class Processor {
 		for (const task of createdTasksInVault) {
 			await this.saveToVault(task);
 		}
+	}
+
+	private async createTaskAndUpdateToVault(task: PluginTask) {
+		if (this.plugin.settings.debugging) console.log("Step CreateTask: Pushing task to vikunja", task);
+		task.task = await this.plugin.tasksApi.createTask(task.task);
+		if (this.plugin.settings.debugging) console.log("Step CreateTask: Update task in Vault ", task);
+		await this.updateToVault(task);
 	}
 
 }
