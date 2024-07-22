@@ -183,7 +183,7 @@ class EmojiTaskFormatter implements TaskFormatter {
 		this.plugin = plugin;
 	}
 
-	async format(task: ModelsTask): Promise<string> {
+	formatRaw(task: ModelsTask): string {
 		if (!task.title) throw new Error("EmojiTaskFormatter: Task title is required");
 
 		let additionalContent = [task.title];
@@ -205,11 +205,6 @@ class EmojiTaskFormatter implements TaskFormatter {
 			}
 		}
 
-		const vikunjaLink = `${this.plugin.settings.vikunjaHost}/tasks/${task.id}`
-		const link = `[link](${vikunjaLink})`
-		additionalContent.push(link);
-		additionalContent.push(`[vikunja_id:: ${task.id}]`);
-
 		if (task.doneAt && task.doneAt !== "0001-01-01T00:00:00Z") {
 			const doneDate = task.doneAt.split("T")[0];
 			const doneDateText = `✅ ${doneDate}`;
@@ -217,11 +212,23 @@ class EmojiTaskFormatter implements TaskFormatter {
 		}
 
 		const additionalContentText = additionalContent.join(" ");
-
 		const result = `- [${task.done ? "x" : " "}] ${additionalContentText}`;
-		if (this.plugin.settings.debugging) console.log("EmojiTaskFormatter: Task formatted", result);
+		if (this.plugin.settings.debugging) console.log("EmojiTaskFormatter: Task raw formatted", result);
 
 		return result;
+	}
+
+	format(task: ModelsTask): string {
+		let additionalContent = [this.formatRaw((task))];
+
+		const vikunjaLink = `${this.plugin.settings.vikunjaHost}/tasks/${task.id}`
+		const link = `[link](${vikunjaLink})`
+		additionalContent.push(link);
+		additionalContent.push(`[vikunja_id:: ${task.id}]`);
+
+		const additionalContentText = additionalContent.join(" ");
+		if (this.plugin.settings.debugging) console.log("EmojiTaskFormatter: Task formatted with additional content", additionalContentText);
+		return additionalContentText;
 	}
 }
 

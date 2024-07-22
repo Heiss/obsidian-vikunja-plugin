@@ -112,6 +112,14 @@ export default class Commands {
 				}
 
 				if (this.plugin.settings.debugging) console.log("Resetting tasks in Vikunja confirmed");
+
+				new Notice("Remove Vikunja Metadata in Vault");
+				const vaultTasks = await this.getTasksFromVault();
+
+				for (const task of vaultTasks) {
+					await this.plugin.processor.updateToVault(task, false)
+				}
+
 				new Notice("Deleting tasks and labels in Vikunja");
 
 				while (true) {

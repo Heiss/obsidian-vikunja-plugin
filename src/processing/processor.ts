@@ -73,7 +73,7 @@ class Processor {
 	}
 
 	async saveToVault(task: PluginTask) {
-		const newTask = await this.getTaskContent(task);
+		const newTask = this.getTaskContent(task);
 
 		await this.app.vault.process(task.file, data => {
 			if (this.plugin.settings.appendMode) {
@@ -91,10 +91,16 @@ class Processor {
 		});
 	}
 
-	async getTaskContent(task: PluginTask) {
-		const content: string = await this.taskFormatter.format(task.task);
+	getTaskContent(task: PluginTask): string {
+		const content: string = this.taskFormatter.format(task.task);
 		return `${content} `;
 	}
+
+	getTaskContentWithoutVikunja(task: PluginTask): string {
+		const content: string = this.taskFormatter.formatRaw(task.task);
+		return `${content} `;
+	}
+
 
 	/*
 	 * Split tasks into two groups:
@@ -183,8 +189,11 @@ class Processor {
 		return pluginTask;
 	}
 
-	async updateToVault(task: PluginTask) {
-		const newTask = await this.getTaskContent(task);
+	/* Update a task in the vault
+	* If the second parameter set to false, the vikunja metadata will not entered. But per default, the metadata will be entered.
+	*/
+	async updateToVault(task: PluginTask, metadata: boolean = true) {
+		const newTask = (metadata) ? this.getTaskContent(task) : this.getTaskContentWithoutVikunja(task);
 
 		await this.app.vault.process(task.file, (data: string) => {
 			const lines = data.split("\n");

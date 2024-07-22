@@ -21,7 +21,13 @@ interface TaskFormatter {
 	 *
 	 * For example, take a look at `EmojiTaskFormatter.format` in emojiTaskFormat.ts
 	 */
-	format(task: ModelsTask): Promise<string>;
+	format(task: ModelsTask): string;
+
+	/*
+	* Formats a task into a string, which does not have any additional metadata.
+	* This is useful, if you do not want to include any vikunja informations in your content.
+	*/
+	formatRaw(task: ModelsTask): string;
 }
 
 export type {TaskFormatter, TaskParser}
