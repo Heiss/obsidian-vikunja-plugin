@@ -22,7 +22,11 @@ export default class VikunjaPlugin extends Plugin {
 		await this.loadSettings();
 		this.commands = new Commands(this.app, this);
 
-		this.commands.checkDependencies();
+		this.app.workspace.onLayoutReady(() => {
+			if (this.settings.debugging) console.log("Layout ready, check dependencies");
+			this.commands.checkDependencies();
+		});
+
 		this.tasksApi = new Tasks(this.app, this);
 		this.userObject = undefined;
 		this.labelsApi = new Label(this.app, this);
