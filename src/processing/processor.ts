@@ -292,7 +292,14 @@ class Processor {
 		if (this.plugin.settings.debugging) console.log("Step CreateTask: Pushing task to vikunja", task);
 		task.task = await this.plugin.tasksApi.createTask(task.task);
 		if (this.plugin.settings.debugging) console.log("Step CreateTask: Update task in Vault ", task);
-		await this.updateToVault(task);
+
+		try {
+			await this.updateToVault(task);
+		} catch (e) {
+			console.error("Error while updating task in vault", e);
+			// transaction to update task in vault, see #9
+			await this.plugin.tasksApi.deleteTask(task.task);
+		}
 	}
 
 }
