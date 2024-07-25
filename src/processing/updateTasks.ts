@@ -55,7 +55,7 @@ class UpdateTasks implements IAutomatonSteps {
 				if (this.plugin.settings.debugging) console.log("Step UpdateTask: updated field is not defined", task, vikunjaTask);
 				throw new Error("Task updated field is not defined");
 			}
-			if (this.areTasksEqual(task.task, vikunjaTask)) {
+			if (task.isTaskEqual(vikunjaTask)) {
 				if (this.plugin.settings.debugging) console.log("Step UpdateTask: Task is the same in both platforms", task, vikunjaTask);
 				continue;
 			}
@@ -79,16 +79,6 @@ class UpdateTasks implements IAutomatonSteps {
 	}
 
 	private areTasksEqual(local: ModelsTask, vikunja: ModelsTask) {
-		const title = local.title === vikunja.title;
-		const description = local.description === vikunja.description;
-		const dueDate = local.dueDate === vikunja.dueDate;
-		const labels = local.labels?.filter(label => vikunja.labels?.find(vikunjaLabel => vikunjaLabel.title === label.title)).length === local.labels?.length;
-		const priority = local.priority === vikunja.priority;
-		const status = local.done === vikunja.done;
-		const doneAt = local.doneAt === vikunja.doneAt;
-//		const updatedAt = local.updated === vikunja.updated; not usable, because it is different if anything changes in local file
-
-		return title && description && dueDate && labels && priority && status && doneAt;
 	}
 
 	private async updateTasks(tasksToUpdateInVault: PluginTask[], tasksToUpdateInVikunja: PluginTask[]) {

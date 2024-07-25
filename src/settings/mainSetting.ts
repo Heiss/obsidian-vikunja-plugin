@@ -3,6 +3,7 @@ import VikunjaPlugin from "../../main";
 import {backendToFindTasks, chooseOutputFile, supportedTasksPluginsFormat} from "../enums";
 import {ModelsProject, ModelsProjectView} from "../../vikunja_sdk";
 import {appHasDailyNotesPluginLoaded} from "obsidian-daily-notes-interface";
+import {PluginTask} from "../vaultSearcher/vaultSearcher";
 
 export interface VikunjaPluginSettings {
 	mySetting: string;
@@ -29,6 +30,7 @@ export interface VikunjaPluginSettings {
 	availableViews: ModelsProjectView[],
 	selectedView: number,
 	selectBucketForDoneTasks: number,
+	cache: Map<number, PluginTask>, // do not touch! Only via processing/processor.ts
 }
 
 export const DEFAULT_SETTINGS: VikunjaPluginSettings = {
@@ -56,6 +58,7 @@ export const DEFAULT_SETTINGS: VikunjaPluginSettings = {
 	availableViews: [],
 	selectedView: 0,
 	selectBucketForDoneTasks: 0,
+	cache: new Map<number, PluginTask>(),
 }
 
 export class MainSetting extends PluginSettingTab {

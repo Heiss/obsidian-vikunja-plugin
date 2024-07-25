@@ -89,6 +89,10 @@ class Processor {
 				return lines.join("\n");
 			}
 		});
+
+		if (task.task.id !== undefined) {
+			this.plugin.settings.cache.set(task.task.id, task);
+		}
 	}
 
 	getTaskContent(task: PluginTask): string {
@@ -169,24 +173,34 @@ class Processor {
 		}
 
 		const lastLine = this.lastLineChecked.get(currentFilename);
-		let pluginTask = undefined;
+		let updatedTask = undefined;
 		if (!!lastLine) {
 			const lastLineText = view.editor.getLine(lastLine);
 			if (this.plugin.settings.debugging) console.log("Processor: Last line,", lastLine, "Last line text", lastLineText);
 			try {
 				const parsedTask = await this.taskParser.parse(lastLineText);
-				pluginTask = {
-					file: file,
-					lineno: lastLine,
-					task: parsedTask
-				};
+				updatedTask = new PluginTask(file, lastLine, parsedTask);
+				if (updatedTask.task.id === undefined) {
+					return undefined;
+				}
+				const cacheTask = this.plugin.settings.cache.get(updatedTask.task.id);
+				if (cacheTask === undefined) {
+					if (this.plugin.settings.debugging) console.error("Processor: Should not be here, because if this task is not in cache, but has an id, it circumvented the cache.")
+					return undefined;
+				}
+				if (cacheTask.isEquals(updatedTask)) {
+					// Cache and current task are equal, so no update is needed
+					return undefined;
+				}
+				// no guard check fires, so there is an update.
+				this.plugin.settings.cache.set(updatedTask.task.id, updatedTask);
 			} catch (e) {
 				if (this.plugin.settings.debugging) console.log("Processor: Error while parsing task", e);
 			}
 		}
 
 		this.lastLineChecked.set(currentFilename, currentLine);
-		return pluginTask;
+		return updatedTask;
 	}
 
 	/* Update a task in the vault
@@ -200,6 +214,10 @@ class Processor {
 			lines.splice(task.lineno, 1, newTask);
 			return lines.join("\n");
 		});
+
+		if (task.task.id !== undefined) {
+			this.plugin.settings.cache.set(task.task.id, task);
+		}
 	}
 
 	getVaultSearcher(): VaultSearcher {
@@ -275,11 +293,7 @@ class Processor {
 				default:
 					throw new Error("No valid chooseOutputFile selected");
 			}
-			const pluginTask: PluginTask = {
-				file: file,
-				lineno: 0,
-				task: task
-			};
+			const pluginTask = new PluginTask(file, 0, task);
 			createdTasksInVault.push(pluginTask);
 		}
 

@@ -141,6 +141,7 @@ export default class Commands {
 
 				if (this.plugin.settings.debugging) console.log("Resetting tasks in Vikunja done");
 				await this.plugin.labelsApi.loadLabels();
+				this.plugin.settings.cache.clear();
 				new Notice("Resetting tasks and labels in Vikunja done");
 			}
 		).open();
