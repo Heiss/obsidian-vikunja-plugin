@@ -1,7 +1,7 @@
 import {App, Notice, PluginSettingTab, Setting} from "obsidian";
 import VikunjaPlugin from "../../main";
 import {backendToFindTasks, chooseOutputFile, supportedTasksPluginsFormat} from "../enums";
-import {ModelsProject, ModelsProjectView} from "../../vikunja_sdk";
+import {ModelsProject, ModelsProjectView, ModelsTask} from "../../vikunja_sdk";
 import {appHasDailyNotesPluginLoaded} from "obsidian-daily-notes-interface";
 import {PluginTask} from "../vaultSearcher/vaultSearcher";
 

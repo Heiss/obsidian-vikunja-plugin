@@ -49,7 +49,7 @@ class Tasks implements VikunjaAPI {
 		await this.addLabelToTask(task);
 
 		const param: TasksIdPostRequest = {id: task.id, task: task};
-		return this.tasksApi.tasksIdPost(param);
+		return await this.tasksApi.tasksIdPost(param);
 	}
 
 	async updateTasks(tasks: ModelsTask[]): Promise<ModelsTask[]> {

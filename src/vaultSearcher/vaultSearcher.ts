@@ -1,6 +1,7 @@
 import {ModelsTask} from "../../vikunja_sdk";
 import {TaskParser} from "../taskFormats/taskFormats";
 import {TFile} from "obsidian";
+import {compareModelTasks} from "../processing/processor";
 
 class PluginTask {
 	file: TFile;
@@ -22,21 +23,14 @@ class PluginTask {
 	}
 
 	isTaskEqual(vikunja: ModelsTask): boolean {
-		const title = this.task.title === vikunja.title;
-		const description = this.task.description === vikunja.description;
-		const dueDate = this.task.dueDate === vikunja.dueDate;
-		const labels = this.task.labels?.filter(label => vikunja.labels?.find(vikunjaLabel => vikunjaLabel.title === label.title)).length === this.task.labels?.length;
-		const priority = this.task.priority === vikunja.priority;
-		const status = this.task.done === vikunja.done;
-		const doneAt = this.task.doneAt === vikunja.doneAt;
-		const updated = this.task.updated === vikunja.updated;
-
-		return title && description && dueDate && labels && priority && status && doneAt && updated;
+		return compareModelTasks(this.task, vikunja);
 	}
 }
 
 interface VaultSearcher {
 	getTasks(parser: TaskParser): Promise<PluginTask[]>;
+
+	getTasksFromFile(parser: TaskParser, file: TFile): Promise<PluginTask[]>;
 }
 
 export type {VaultSearcher};

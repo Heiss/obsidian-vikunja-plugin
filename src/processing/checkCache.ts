@@ -3,7 +3,7 @@ import {ModelsTask} from "vikunja_sdk";
 import {IAutomatonSteps, StepsOutput} from "./automaton";
 import VikunjaPlugin from "../../main";
 import {App} from "obsidian";
-import {Processor} from "./processor";
+import {compareModelTasks, Processor} from "./processor";
 
 export default class CheckCache implements IAutomatonSteps {
 	plugin: VikunjaPlugin;
@@ -17,18 +17,18 @@ export default class CheckCache implements IAutomatonSteps {
 	}
 
 	async step(localTasks: PluginTask[], vikunjaTasks: ModelsTask[]): Promise<StepsOutput> {
-		this.updateCacheFromVault(localTasks, vikunjaTasks);
+		this.updateCacheFromVault(localTasks);
 		return {localTasks, vikunjaTasks};
 	}
 
-	updateCacheFromVault(localTasks: PluginTask[], vikunjaTasks: ModelsTask[]) {
+	updateCacheFromVault(localTasks: PluginTask[]) {
 		const tasksWithId = localTasks.filter(task => {
 				if (task.task.id === undefined) return false; // task has no id, so it is not in the cache, because not synced to vikunja
 
-				const elem = this.plugin.settings.cache.get(task.task.id)
+				const elem = this.plugin.cache.get(task.task.id)
 				if (elem === undefined) return false; // task is not in the cache, because not synced to vikunja
 
-				return !elem.isEquals(task); // filter elem, if it is equal to task in cache. False filters out.
+				return !compareModelTasks(elem.task, task.task); // filter elem, if it is equal to task in cache. False filters out.
 			}
 		);
 

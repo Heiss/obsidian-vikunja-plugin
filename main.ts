@@ -6,6 +6,7 @@ import {UserUser} from "./vikunja_sdk";
 import {Label} from "./src/vikunja/labels";
 import Commands from "./src/commands";
 import {Projects} from "./src/vikunja/projects";
+import VaultTaskCache from "./src/settings/VaultTaskCache";
 
 // Remember to rename these classes and interfaces!
 
@@ -17,6 +18,7 @@ export default class VikunjaPlugin extends Plugin {
 	processor: Processor;
 	commands: Commands;
 	projectsApi: Projects;
+	cache: VaultTaskCache;
 
 	async onload() {
 		await this.loadSettings();
@@ -88,6 +90,7 @@ export default class VikunjaPlugin extends Plugin {
 		this.userObject = undefined;
 		this.labelsApi = new Label(this.app, this);
 		this.projectsApi = new Projects(this.app, this);
+		this.cache = new VaultTaskCache(this.app, this);
 	}
 
 	private setupCommands() {
@@ -122,14 +125,30 @@ export default class VikunjaPlugin extends Plugin {
 		})
 	}
 
-	private async handleEditorChange() {
-		if (this.settings.debugging) console.log("Editor changed");
+	private async handleEditorChange(data: any) {
+		if (this.settings.debugging) console.log("Editor changed", data);
+		const currentFile = this.app.workspace.getActiveFile();
+		if (!currentFile) {
+			if (this.settings.debugging) console.log("No file open");
+			return;
+		}
+
+		const tasks = await this.processor.getVaultSearcher().getTasksFromFile(this.processor.getTaskParser(), currentFile);
+		for (const task of tasks) {
+			if (task.task.id) {
+				const cachedTask = this.cache.get(task.task.id);
+				if (cachedTask === undefined || !cachedTask.isEquals(task)) {
+					this.cache.update(task);
+				}
+			}
+		}
+		// FIXME the update line stuff should be communicated in settings
 		return;
-		//await this.checkLastLineForUpdate();
 	}
 
 	private async handleUpDownEvent(evt: KeyboardEvent) {
-		if (evt.key === 'ArrowUp' || evt.key === 'ArrowDown' || evt.key === 'PageUp' || evt.key === 'PageDown') {
+		if (evt.key === 'ArrowUp' || evt.key === 'ArrowDown' || evt.key === 'PageUp' || evt.key === 'PageDown' || evt.key === "Enter") {
+			if (this.settings.debugging) console.log("Line changed via keys");
 			await this.checkLastLineForUpdate();
 		}
 	}

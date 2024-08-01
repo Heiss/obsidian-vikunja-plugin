@@ -90,9 +90,7 @@ class Processor {
 			}
 		});
 
-		if (task.task.id !== undefined) {
-			this.plugin.settings.cache.set(task.task.id, task);
-		}
+		this.plugin.cache.update(task);
 	}
 
 	getTaskContent(task: PluginTask): string {
@@ -183,17 +181,17 @@ class Processor {
 				if (updatedTask.task.id === undefined) {
 					return undefined;
 				}
-				const cacheTask = this.plugin.settings.cache.get(updatedTask.task.id);
+				const cacheTask = this.plugin.cache.get(updatedTask.task.id);
 				if (cacheTask === undefined) {
 					if (this.plugin.settings.debugging) console.error("Processor: Should not be here, because if this task is not in cache, but has an id, it circumvented the cache.")
 					return undefined;
 				}
-				if (cacheTask.isEquals(updatedTask)) {
+				if (compareModelTasks(updatedTask.task, cacheTask.task)) {
 					// Cache and current task are equal, so no update is needed
 					return undefined;
 				}
 				// no guard check fires, so there is an update.
-				this.plugin.settings.cache.set(updatedTask.task.id, updatedTask);
+				this.plugin.cache.update(updatedTask);
 			} catch (e) {
 				if (this.plugin.settings.debugging) console.log("Processor: Error while parsing task", e);
 			}
@@ -215,9 +213,7 @@ class Processor {
 			return lines.join("\n");
 		});
 
-		if (task.task.id !== undefined) {
-			this.plugin.settings.cache.set(task.task.id, task);
-		}
+		this.plugin.cache.update(task);
 	}
 
 	getVaultSearcher(): VaultSearcher {
@@ -319,7 +315,19 @@ class Processor {
 			await this.plugin.tasksApi.deleteTask(task.task);
 		}
 	}
-
 }
 
-export {Processor};
+function compareModelTasks(local: ModelsTask, vikunja: ModelsTask): boolean {
+	const title = local.title === vikunja.title;
+	const description = local.description === vikunja.description;
+	const dueDate = local.dueDate === vikunja.dueDate;
+	const labels = local.labels?.filter(label => vikunja.labels?.find(vikunjaLabel => vikunjaLabel.title === label.title)).length === local.labels?.length;
+	const priority = local.priority === vikunja.priority;
+	const status = local.done === vikunja.done;
+	const doneAt = local.doneAt === vikunja.doneAt;
+	const updated = local.updated === vikunja.updated;
+
+	return title && description && dueDate && labels && priority && status && doneAt && updated;
+}
+
+export {Processor, compareModelTasks};
