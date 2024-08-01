@@ -72,17 +72,6 @@ export default class VikunjaPlugin extends Plugin {
 		this.registerDomEvent(document, 'keyup', this.handleUpDownEvent.bind(this));
 		this.registerDomEvent(document, 'click', this.handleClickEvent.bind(this));
 		this.registerEvent(this.app.workspace.on('editor-change', this.handleEditorChange.bind(this)));
-
-		// When registering intervals, this function will automatically clear the interval when the plugin is disabled.
-		this.registerInterval(window
-			.setInterval(async () => {
-					// this runs anyway, also when cron not enabled, to be dynamically enabled by settings without disable/enable plugin
-					if (this.settings.enableCron) {
-						await this.processor.exec()
-					}
-				},
-				this.settings.cronInterval * 1000)
-		);
 	}
 
 	private setupAPIs() {

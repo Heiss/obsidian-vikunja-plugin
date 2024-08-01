@@ -1,7 +1,7 @@
 import {App, Notice, PluginSettingTab, Setting} from "obsidian";
 import VikunjaPlugin from "../../main";
 import {backendToFindTasks, chooseOutputFile, supportedTasksPluginsFormat} from "../enums";
-import {ModelsProject, ModelsProjectView, ModelsTask} from "../../vikunja_sdk";
+import {ModelsProject, ModelsProjectView} from "../../vikunja_sdk";
 import {appHasDailyNotesPluginLoaded} from "obsidian-daily-notes-interface";
 import {PluginTask} from "../vaultSearcher/vaultSearcher";
 
@@ -30,7 +30,8 @@ export interface VikunjaPluginSettings {
 	availableViews: ModelsProjectView[],
 	selectedView: number,
 	selectBucketForDoneTasks: number,
-	cache: Map<number, PluginTask>, // do not touch! Only via processing/processor.ts
+	cache: Map<number, PluginTask>, // do not touch! Only via settings/VaultTaskCache.ts
+	saveCacheToDiskFrequency: number,
 }
 
 export const DEFAULT_SETTINGS: VikunjaPluginSettings = {
@@ -59,15 +60,21 @@ export const DEFAULT_SETTINGS: VikunjaPluginSettings = {
 	selectedView: 0,
 	selectBucketForDoneTasks: 0,
 	cache: new Map<number, PluginTask>(),
+	saveCacheToDiskFrequency: 10,
 }
 
 export class MainSetting extends PluginSettingTab {
 	plugin: VikunjaPlugin;
 	projects: ModelsProject[] = [];
+	private cacheListener: number;
+	private cronListener: number;
 
 	constructor(app: App, plugin: VikunjaPlugin) {
 		super(app, plugin);
 		this.plugin = plugin;
+
+		this.startCacheListener();
+		this.startCronListener();
 	}
 
 	display(): void {
@@ -187,9 +194,21 @@ export class MainSetting extends PluginSettingTab {
 							this.plugin.settings.cronInterval = parseInt(value);
 							await this.plugin.saveSettings();
 						}
-					))
-			;
+					));
 		}
+
+		new Setting(containerEl)
+			.setName("Save cache to disk frequency")
+			.setDesc("Set the interval in minutes to save the cache to disk. Lower values will result in more frequent saves, but may cause performance issues. Limits are 1 to 60. This will be enforced by the plugin.")
+			.addText(text => text
+				.setValue(this.plugin.settings.saveCacheToDiskFrequency.toString())
+				.onChange(async (value: string) => {
+						this.plugin.settings.saveCacheToDiskFrequency = Math.max(Math.min(parseInt(value), 60), 1);
+						await this.plugin.saveSettings();
+						this.startCacheListener();
+					}
+				)
+			)
 
 		new Setting(containerEl).setHeading().setName('Vikunja Settings').setDesc('Settings to connect to Vikunja.');
 
@@ -549,6 +568,25 @@ export class MainSetting extends PluginSettingTab {
 		if (this.plugin.settings.debugging) console.log(`SettingsTab: Default project set to:`, this.projects[0].id);
 
 		this.display();
+	}
+
+	private startCacheListener() {
+		window.clearInterval(this.cacheListener);
+		this.cacheListener = window.setInterval(this.plugin.cache.saveCacheToDisk.bind(this), this.plugin.settings.saveCacheToDiskFrequency * 60 * 1000);
+		this.plugin.registerInterval(this.cacheListener);
+	}
+
+	private startCronListener() {
+		window.clearInterval(this.cronListener);
+		this.cronListener = window
+			.setInterval(async () => {
+					// this runs anyway, also when cron not enabled, to be dynamically enabled by settings without disable/enable plugin
+					if (this.plugin.settings.enableCron) {
+						await this.plugin.processor.exec()
+					}
+				},
+				this.plugin.settings.cronInterval * 1000)
+		this.plugin.registerInterval(this.cronListener);
 	}
 
 	private resetApis() {

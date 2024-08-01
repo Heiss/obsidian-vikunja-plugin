@@ -16,6 +16,10 @@ export default class VaultTaskCache {
 		this.plugin = plugin;
 	}
 
+	async saveCacheToDisk() {
+		await this.plugin.saveSettings();
+	}
+
 	update(local: PluginTask) {
 		if (local.task.id === undefined) {
 			throw new Error("VaultTaskCache: Task id is not defined");
