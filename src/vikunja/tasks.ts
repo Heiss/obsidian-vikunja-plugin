@@ -12,6 +12,7 @@ import {
 	TasksTaskLabelsPutRequest
 } from "../../vikunja_sdk";
 import VikunjaAPI from "./VikunjaAPI";
+import {PluginTask} from "../vaultSearcher/vaultSearcher";
 
 class Tasks implements VikunjaAPI {
 	plugin: VikunjaPlugin;
@@ -39,21 +40,19 @@ class Tasks implements VikunjaAPI {
 		return await this.tasksApi.tasksAllGet();
 	}
 
-	async updateTask(task: ModelsTask): Promise<ModelsTask> {
-		if (!task.id) throw new Error("TasksApi: Task id is not defined");
-		if (this.plugin.settings.debugging) console.log("TasksApi: Updating task", task.id, task);
-		if (task.done) {
-			task.bucketId = this.plugin.settings.selectBucketForDoneTasks;
+	async updateTask(task: PluginTask): Promise<ModelsTask> {
+		if (!task.task.id) {
+			throw new Error("TasksApi: Task id is not defined");
+		}
+		if (this.plugin.settings.debugging) console.log("TasksApi: Updating task", task.task.id, task);
+		if (task.task.done) {
+			task.task.bucketId = this.plugin.settings.selectBucketForDoneTasks;
 		}
 
-		await this.addLabelToTask(task);
-
-		const param: TasksIdPostRequest = {id: task.id, task: task};
+		await this.addLabelToTask(task.task);
+		this.plugin.cache.update(task);
+		const param: TasksIdPostRequest = {id: task.task.id, task: task.task};
 		return await this.tasksApi.tasksIdPost(param);
-	}
-
-	async updateTasks(tasks: ModelsTask[]): Promise<ModelsTask[]> {
-		return Promise.all(tasks.map(task => this.updateTask(task)));
 	}
 
 	async createTask(task: ModelsTask): Promise<ModelsTask> {
@@ -144,29 +143,23 @@ class Tasks implements VikunjaAPI {
 		}
 	}
 
-	async getTaskById(taskId: number) {
+	async getTaskById(taskId: number): Promise<ModelsTask> {
 		const param: TasksIdGetRequest = {id: taskId};
-		return this.tasksApi.tasksIdGet(param);
+		return await this.tasksApi.tasksIdGet(param);
 	}
 
-	async updateProjectsIdInVikunja(tasks: ModelsTask[], projectId: number) {
+	async updateProjectsIdInVikunja(tasks: PluginTask[], projectId: number) {
 		if (this.plugin.settings.debugging) console.log("TasksApi: Updating project id in tasks", projectId);
 		// FIXME there is a bulkPost in tasksApi, use it instead of update any task separately
 		return await Promise.all(tasks.map(task => this.updateProjectIdInVikunja(task, projectId)));
 	}
 
-	async updateProjectIdInVikunja(task: ModelsTask, projectId: number) {
-		if (!task.id) throw new Error("TasksApi: Task id is not defined");
-		if (this.plugin.settings.debugging) console.log("TasksApi: Updating project id in task", task.id, projectId);
+	async updateProjectIdInVikunja(task: PluginTask, projectId: number) {
+		if (!task.task.id) throw new Error("TasksApi: Task id is not defined");
+		if (this.plugin.settings.debugging) console.log("TasksApi: Updating project id in task", task.task.id, projectId);
 
-		task.projectId = projectId;
+		task.task.projectId = projectId;
 		await this.updateTask(task);
-	}
-
-	async updateBucketInVikunja(task: ModelsTask, bucketId: number) {
-		if (!task.id) throw new Error("TasksApi: Task id is not defined");
-		if (this.plugin.settings.debugging) console.log("TasksApi: Updating bucket in task", task.id, bucketId);
-
 	}
 }
 

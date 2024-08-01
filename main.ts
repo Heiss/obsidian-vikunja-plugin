@@ -54,7 +54,7 @@ export default class VikunjaPlugin extends Plugin {
 		if (this.settings.debugging) console.log("Checking for task update");
 		const updateTask = await this.processor.checkUpdateInLineAvailable()
 		if (updateTask !== undefined) {
-			await this.tasksApi.updateTask(updateTask.task);
+			await this.tasksApi.updateTask(updateTask);
 		} else {
 			if (this.settings.debugging) console.log("No task to update found");
 		}
@@ -165,8 +165,12 @@ export default class VikunjaPlugin extends Plugin {
 				const taskId = parseInt(match[1]);
 				if (this.settings.debugging) console.log("Checkbox clicked for task", taskId);
 				const task = await this.tasksApi.getTaskById(taskId);
-				task.done = target.checked;
-				await this.tasksApi.updateTask(task);
+				const cachedTask = this.cache.get(taskId);
+				if (cachedTask !== undefined) {
+					cachedTask.task = task;
+					cachedTask.task.done = target.checked;
+					await this.tasksApi.updateTask(cachedTask);
+				}
 			} else {
 				if (this.settings.debugging) console.log("No task id found for checkbox");
 			}
