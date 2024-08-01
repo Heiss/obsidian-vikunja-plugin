@@ -75,9 +75,14 @@ class Processor {
 	async saveToVault(task: PluginTask) {
 		const newTask = this.getTaskContent(task);
 
-		await this.app.vault.process(task.file, data => {
+		const file = this.app.vault.getFileByPath(task.filepath);
+		if (file === null) {
+			return;
+		}
+		await this.app.vault.process(file, data => {
+			let content;
 			if (this.plugin.settings.appendMode) {
-				return data + "\n" + newTask;
+				content = data + "\n" + newTask;
 			} else {
 				const lines = data.split("\n");
 				for (let i = 0; i < lines.length; i++) {
@@ -86,8 +91,10 @@ class Processor {
 						break;
 					}
 				}
-				return lines.join("\n");
+				content = lines.join("\n");
 			}
+			this.plugin.cache.update(task);
+			return content;
 		});
 	}
 
@@ -169,24 +176,34 @@ class Processor {
 		}
 
 		const lastLine = this.lastLineChecked.get(currentFilename);
-		let pluginTask = undefined;
+		let updatedTask = undefined;
 		if (!!lastLine) {
 			const lastLineText = view.editor.getLine(lastLine);
 			if (this.plugin.settings.debugging) console.log("Processor: Last line,", lastLine, "Last line text", lastLineText);
 			try {
 				const parsedTask = await this.taskParser.parse(lastLineText);
-				pluginTask = {
-					file: file,
-					lineno: lastLine,
-					task: parsedTask
-				};
+				updatedTask = new PluginTask(file.path, lastLine, parsedTask);
+				if (updatedTask.task.id === undefined) {
+					return undefined;
+				}
+				const cacheTask = this.plugin.cache.get(updatedTask.task.id);
+				if (cacheTask === undefined) {
+					if (this.plugin.settings.debugging) console.error("Processor: Should not be here, because if this task is not in cache, but has an id, it circumvented the cache.")
+					return undefined;
+				}
+				if (compareModelTasks(updatedTask.task, cacheTask.task)) {
+					// Cache and current task are equal, so no update is needed
+					return undefined;
+				}
+				// no guard check fires, so there is an update.
+				this.plugin.cache.update(updatedTask);
 			} catch (e) {
 				if (this.plugin.settings.debugging) console.log("Processor: Error while parsing task", e);
 			}
 		}
 
 		this.lastLineChecked.set(currentFilename, currentLine);
-		return pluginTask;
+		return updatedTask;
 	}
 
 	/* Update a task in the vault
@@ -194,12 +211,18 @@ class Processor {
 	*/
 	async updateToVault(task: PluginTask, metadata: boolean = true) {
 		const newTask = (metadata) ? this.getTaskContent(task) : this.getTaskContentWithoutVikunja(task);
-
-		await this.app.vault.process(task.file, (data: string) => {
+		const file = this.app.vault.getFileByPath(task.filepath);
+		if (file === null) {
+			return;
+		}
+		await this.app.vault.process(file, (data: string) => {
 			const lines = data.split("\n");
 			lines.splice(task.lineno, 1, newTask);
-			return lines.join("\n");
+			const content = lines.join("\n");
+			this.plugin.cache.update(task);
+			return content;
 		});
+
 	}
 
 	getVaultSearcher(): VaultSearcher {
@@ -252,8 +275,12 @@ class Processor {
 		for (const task of tasksToPushToVault) {
 			let file: TFile;
 			const chosenFile = this.app.vault.getFileByPath(this.plugin.settings.chosenOutputFile);
-			// FIXME This should be the date of the vikunja created date, so the task is created in the correct daily note
-			const date = moment();
+			const formattedDate = task.created;
+			let date = moment();
+			if (formattedDate !== undefined) {
+				if (this.plugin.settings.debugging) console.log("Step CreateTask: Found formatted date", formattedDate, "using it as daily note");
+				date = moment(formattedDate, "YYYY-MM-DDTHH:mm:ss[Z]");
+			}
 			const dailies = getAllDailyNotes()
 
 			switch (this.plugin.settings.chooseOutputFile) {
@@ -275,11 +302,7 @@ class Processor {
 				default:
 					throw new Error("No valid chooseOutputFile selected");
 			}
-			const pluginTask: PluginTask = {
-				file: file,
-				lineno: 0,
-				task: task
-			};
+			const pluginTask = new PluginTask(file.path, 0, task);
 			createdTasksInVault.push(pluginTask);
 		}
 
@@ -301,7 +324,19 @@ class Processor {
 			await this.plugin.tasksApi.deleteTask(task.task);
 		}
 	}
-
 }
 
-export {Processor};
+function compareModelTasks(local: ModelsTask, vikunja: ModelsTask): boolean {
+	const title = local.title === vikunja.title;
+	const description = local.description === vikunja.description;
+	const dueDate = local.dueDate === vikunja.dueDate;
+	const labels = local.labels?.filter(label => vikunja.labels?.find(vikunjaLabel => vikunjaLabel.title === label.title)).length === local.labels?.length;
+	const priority = local.priority === vikunja.priority;
+	const status = local.done === vikunja.done;
+	const doneAt = local.doneAt === vikunja.doneAt;
+	const updated = local.updated === vikunja.updated;
+
+	return title && description && dueDate && labels && priority && status && doneAt && updated;
+}
+
+export {Processor, compareModelTasks};

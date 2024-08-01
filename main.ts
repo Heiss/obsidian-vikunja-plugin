@@ -6,6 +6,7 @@ import {UserUser} from "./vikunja_sdk";
 import {Label} from "./src/vikunja/labels";
 import Commands from "./src/commands";
 import {Projects} from "./src/vikunja/projects";
+import VaultTaskCache from "./src/settings/VaultTaskCache";
 
 // Remember to rename these classes and interfaces!
 
@@ -17,6 +18,7 @@ export default class VikunjaPlugin extends Plugin {
 	processor: Processor;
 	commands: Commands;
 	projectsApi: Projects;
+	cache: VaultTaskCache;
 
 	async onload() {
 		await this.loadSettings();
@@ -38,17 +40,21 @@ export default class VikunjaPlugin extends Plugin {
 
 	async loadSettings() {
 		this.settings = Object.assign({}, DEFAULT_SETTINGS, await this.loadData());
+		this.cache = VaultTaskCache.fromJson(this.settings.cache, this.app, this);
 	}
 
 	async saveSettings() {
+		this.settings.cache = this.cache.getCachedTasks().map(task => {
+			return task.toJson();
+		});
 		await this.saveData(this.settings);
 	}
 
 	async checkLastLineForUpdate() {
 		if (this.settings.debugging) console.log("Checking for task update");
 		const updateTask = await this.processor.checkUpdateInLineAvailable()
-		if (!!updateTask) {
-			await this.tasksApi.updateTask(updateTask.task);
+		if (updateTask !== undefined) {
+			await this.tasksApi.updateTask(updateTask);
 		} else {
 			if (this.settings.debugging) console.log("No task to update found");
 		}
@@ -70,17 +76,6 @@ export default class VikunjaPlugin extends Plugin {
 		this.registerDomEvent(document, 'keyup', this.handleUpDownEvent.bind(this));
 		this.registerDomEvent(document, 'click', this.handleClickEvent.bind(this));
 		this.registerEvent(this.app.workspace.on('editor-change', this.handleEditorChange.bind(this)));
-
-		// When registering intervals, this function will automatically clear the interval when the plugin is disabled.
-		this.registerInterval(window
-			.setInterval(async () => {
-					// this runs anyway, also when cron not enabled, to be dynamically enabled by settings without disable/enable plugin
-					if (this.settings.enableCron) {
-						await this.processor.exec()
-					}
-				},
-				this.settings.cronInterval * 1000)
-		);
 	}
 
 	private setupAPIs() {
@@ -88,6 +83,7 @@ export default class VikunjaPlugin extends Plugin {
 		this.userObject = undefined;
 		this.labelsApi = new Label(this.app, this);
 		this.projectsApi = new Projects(this.app, this);
+		this.cache = new VaultTaskCache(this.app, this);
 	}
 
 	private setupCommands() {
@@ -122,19 +118,42 @@ export default class VikunjaPlugin extends Plugin {
 		})
 	}
 
-	private async handleEditorChange() {
-		if (this.settings.debugging) console.log("Editor changed");
+	private async handleEditorChange(data: any) {
+		if (this.settings.debugging) console.log("Editor changed", data);
+		const currentFile = this.app.workspace.getActiveFile();
+		if (!currentFile) {
+			if (this.settings.debugging) console.log("No file open");
+			return;
+		}
+
+		const tasks = await this.processor.getVaultSearcher().getTasksFromFile(this.processor.getTaskParser(), currentFile);
+		for (const task of tasks) {
+			if (task.task.id) {
+				const cachedTask = this.cache.get(task.task.id);
+				if (cachedTask === undefined || !cachedTask.isTaskEqual(task.task)) {
+					this.cache.update(task);
+				} else {
+					if (cachedTask.lineno !== task.lineno || cachedTask.filepath !== task.filepath) {
+						this.cache.updateFileInfos(task.task.id, task.filepath, task.lineno);
+					}
+				}
+			}
+		}
+		// FIXME the update line stuff should be communicated in settings
 		return;
-		//await this.checkLastLineForUpdate();
 	}
 
 	private async handleUpDownEvent(evt: KeyboardEvent) {
-		if (evt.key === 'ArrowUp' || evt.key === 'ArrowDown' || evt.key === 'PageUp' || evt.key === 'PageDown') {
+		if (evt.key === 'ArrowUp' || evt.key === 'ArrowDown' || evt.key === 'PageUp' || evt.key === 'PageDown' || evt.key === "Enter") {
+			if (this.settings.debugging) console.log("Line changed via keys");
 			await this.checkLastLineForUpdate();
 		}
 	}
 
 	private async handleClickEvent(evt: MouseEvent) {
+		if (!this.settings.updateOnCursorMovement) {
+			return;
+		}
 		const target = evt.target as HTMLInputElement;
 		if (this.app.workspace.activeEditor?.editor?.hasFocus()) {
 			await this.checkLastLineForUpdate();
@@ -153,8 +172,12 @@ export default class VikunjaPlugin extends Plugin {
 				const taskId = parseInt(match[1]);
 				if (this.settings.debugging) console.log("Checkbox clicked for task", taskId);
 				const task = await this.tasksApi.getTaskById(taskId);
-				task.done = target.checked;
-				await this.tasksApi.updateTask(task);
+				const cachedTask = this.cache.get(taskId);
+				if (cachedTask !== undefined) {
+					cachedTask.task = task;
+					cachedTask.task.done = target.checked;
+					await this.tasksApi.updateTask(cachedTask);
+				}
 			} else {
 				if (this.settings.debugging) console.log("No task id found for checkbox");
 			}

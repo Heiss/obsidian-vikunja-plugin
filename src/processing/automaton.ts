@@ -8,6 +8,7 @@ import UpdateTasks from "./updateTasks";
 import CreateTasks from "./createTasks";
 import {Processor} from "./processor";
 import {SyncLabels} from "./syncLabels";
+import CheckCache from "./checkCache";
 
 interface StepsOutput {
 	localTasks: PluginTask[];
@@ -41,6 +42,7 @@ class Automaton {
 
 		this.steps = [
 			new GetTasks(app, plugin, processor),
+			new CheckCache(plugin, app, processor),
 			new SyncLabels(app, plugin),
 			new RemoveTasks(app, plugin),
 			new CreateTasks(app, plugin, processor),

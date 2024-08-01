@@ -79,7 +79,7 @@ export default class Commands {
 		}
 		if (this.plugin.settings.debugging) console.log("Move all tasks to default project");
 
-		const tasks = (await this.getTasksFromVault()).filter(task => task.task.id !== undefined).map(task => task.task);
+		const tasks = (await this.getTasksFromVault()).filter(task => task.task.id !== undefined);
 		await this.plugin.tasksApi.updateProjectsIdInVikunja(tasks, this.plugin.settings.defaultVikunjaProject);
 	}
 
@@ -141,6 +141,7 @@ export default class Commands {
 
 				if (this.plugin.settings.debugging) console.log("Resetting tasks in Vikunja done");
 				await this.plugin.labelsApi.loadLabels();
+				this.plugin.cache.reset();
 				new Notice("Resetting tasks and labels in Vikunja done");
 			}
 		).open();

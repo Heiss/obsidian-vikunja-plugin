@@ -3,6 +3,7 @@ import VikunjaPlugin from "../../main";
 import {backendToFindTasks, chooseOutputFile, supportedTasksPluginsFormat} from "../enums";
 import {ModelsProject, ModelsProjectView} from "../../vikunja_sdk";
 import {appHasDailyNotesPluginLoaded} from "obsidian-daily-notes-interface";
+import {PluginTask} from "../vaultSearcher/vaultSearcher";
 
 export interface VikunjaPluginSettings {
 	mySetting: string;
@@ -29,6 +30,9 @@ export interface VikunjaPluginSettings {
 	availableViews: ModelsProjectView[],
 	selectedView: number,
 	selectBucketForDoneTasks: number,
+	cache: PluginTask[], // do not touch! Only via settings/VaultTaskCache.ts
+	saveCacheToDiskFrequency: number,
+	updateCompletedStatusImmediately: boolean,
 }
 
 export const DEFAULT_SETTINGS: VikunjaPluginSettings = {
@@ -56,15 +60,23 @@ export const DEFAULT_SETTINGS: VikunjaPluginSettings = {
 	availableViews: [],
 	selectedView: 0,
 	selectBucketForDoneTasks: 0,
+	cache: [],
+	saveCacheToDiskFrequency: 1,
+	updateCompletedStatusImmediately: false,
 }
 
 export class MainSetting extends PluginSettingTab {
 	plugin: VikunjaPlugin;
 	projects: ModelsProject[] = [];
+	private cacheListener: number;
+	private cronListener: number;
 
 	constructor(app: App, plugin: VikunjaPlugin) {
 		super(app, plugin);
 		this.plugin = plugin;
+
+		this.startCacheListener();
+		this.startCronListener();
 	}
 
 	display(): void {
@@ -152,6 +164,7 @@ export class MainSetting extends PluginSettingTab {
 				.onChange(async (value: boolean) => {
 					this.plugin.settings.enableCron = value;
 					await this.plugin.saveSettings();
+					this.startCronListener();
 					this.display();
 				}));
 
@@ -183,10 +196,31 @@ export class MainSetting extends PluginSettingTab {
 
 							this.plugin.settings.cronInterval = parseInt(value);
 							await this.plugin.saveSettings();
+							this.startCronListener();
 						}
-					))
-			;
+					));
 		}
+
+		new Setting(containerEl)
+			.setName("Save cache to disk frequency")
+			.setDesc("This plugin uses a cache to calculate correct dates. Set the interval in minutes to save the cache to disk. Lower values will result in more frequent saves, but may cause performance issues. Set too high, task dates are not correctly calculated, because they are missing in cache in next startup. If you make bulk edits of tasks in your vault, you should set higher value. Cache will be only written, if changes were made since last check. If you are unsure, try lowest value and increase it, if you experience performance issues. Limits are 1 to 60 minutes.")
+			.addText(text => text
+				.setValue(this.plugin.settings.saveCacheToDiskFrequency.toString())
+				.onChange(async (value: string) => {
+						const parsedNumber = parseInt(value);
+						if (Number.isNaN(parsedNumber)) {
+							return;
+						}
+						const lowerThanMax = Math.min(parsedNumber, 60);
+						if (this.plugin.settings.debugging) console.log("Save cache to disk frequency - high limits", lowerThanMax);
+						const higherThanMin = Math.max(lowerThanMax, 1);
+						if (this.plugin.settings.debugging) console.log("Save cache to disk frequency - low limits", higherThanMin);
+						this.plugin.settings.saveCacheToDiskFrequency = higherThanMin;
+						await this.plugin.saveSettings();
+						this.startCacheListener();
+					}
+				)
+			)
 
 		new Setting(containerEl).setHeading().setName('Vikunja Settings').setDesc('Settings to connect to Vikunja.');
 
@@ -252,6 +286,97 @@ export class MainSetting extends PluginSettingTab {
 					}, 2000);
 				}));
 
+		new Setting(containerEl)
+			.setHeading()
+			.setName("Updates: Obsidian <-> Vikunja")
+
+		new Setting(containerEl)
+			.setDesc("This plugin prioritizes changes in Obsidian over Vikunja. This means, that if you make changes in both systems, the changes in Obsidian will be used over the one in Vikunja. To prevent data loss, do not make any changes in your markdown files without Obsidian.");
+
+		new Setting(containerEl)
+			.setName("Check for updates on startup")
+			.setDesc("This will check for changes in Vault and Vikunja and update the tasks vice versa, but prioritize the changes in Obsidian. Useful, if you want to use Vikunja, but do not make any changes directly on the markdown files while obsidian is closed.")
+			.addToggle(toggle =>
+				toggle
+					.setValue(this.plugin.settings.updateOnStartup)
+					.onChange(async (value: boolean) => {
+						this.plugin.settings.updateOnStartup = value;
+						await this.plugin.saveSettings();
+					}));
+
+
+		new Setting(containerEl)
+			.setName("Select default project")
+			.setDesc("This project will be used to place new tasks created by this plugin.")
+			.addDropdown(async dropdown => {
+					if (this.plugin.settings.debugging) {
+						console.log(`SettingsTab: Got projects:`, this.projects);
+					}
+
+					for (const project of this.projects) {
+						if (project.id === undefined || project.title === undefined) {
+							throw new Error("Project id or title is undefined");
+						}
+						dropdown.addOption(project.id.toString(), project.title);
+					}
+
+					dropdown.setValue(this.plugin.settings.defaultVikunjaProject.toString());
+
+					dropdown.onChange(async (value: string) => {
+						this.plugin.settings.defaultVikunjaProject = parseInt(value);
+						if (this.plugin.settings.debugging) console.log(`SettingsTab: Selected Vikunja project:`, this.plugin.settings.defaultVikunjaProject);
+
+						this.plugin.settings.availableViews = await this.plugin.projectsApi.getViewsByProjectId(this.plugin.settings.defaultVikunjaProject);
+						if (this.plugin.settings.debugging) console.log(`SettingsTab: Available views:`, this.plugin.settings.availableViews);
+
+						if (this.plugin.settings.availableViews.length === 1) {
+							const id = this.plugin.settings.availableViews[0].id;
+							if (id === undefined) throw new Error("View id is undefined");
+							this.plugin.settings.selectedView = id;
+							this.plugin.settings.selectBucketForDoneTasks = await this.plugin.projectsApi.getDoneBucketIdFromKanbanView(this.plugin.settings.defaultVikunjaProject);
+							if (this.plugin.settings.debugging) console.log(`SettingsTab: Done bucket set to:`, this.plugin.settings.selectBucketForDoneTasks);
+						}
+						await this.plugin.saveSettings();
+						this.display();
+					});
+				}
+			)
+
+		if (this.plugin.settings.availableViews.length > 1) {
+			new Setting(containerEl)
+				.setName("Select bucket")
+				.setDesc("Because vikunja does not move done tasks to the correct bucket, you have to select the bucket where the done tasks are placed, so this plugin can do it for you.")
+				.addDropdown(dropdown => {
+					let i = 0;
+					for (const view of this.plugin.settings.availableViews) {
+						if (view.id === undefined || view.title === undefined) {
+							throw new Error("View id or title is undefined");
+						}
+						dropdown.addOption((i++).toString(), view.title);
+					}
+
+					dropdown.setValue(this.plugin.settings.selectedView.toString());
+
+					dropdown.onChange(async (value: string) => {
+						this.plugin.settings.selectedView = parseInt(value);
+						if (this.plugin.settings.debugging) console.log(`SettingsTab: Selected Vikunja bucket:`, this.plugin.settings.selectedView);
+
+						this.plugin.settings.selectBucketForDoneTasks = await this.plugin.projectsApi.getDoneBucketIdFromKanbanView(this.plugin.settings.defaultVikunjaProject);
+						if (this.plugin.settings.debugging) console.log(`SettingsTab: Done bucket set to:`, this.plugin.settings.selectBucketForDoneTasks);
+						await this.plugin.saveSettings();
+					});
+				});
+		}
+
+		new Setting(containerEl)
+			.setName("Move all tasks to selected default project")
+			.setDesc("This will move all tasks from Vault to the selected default project in Vikunja. This will not delete any tasks in Vikunja, but only move them to the selected project. This helps, if you make a wrong decision in the past. This does not create any tasks in Vikunja.")
+			.addButton(button => button
+				.setButtonText("Move all tasks")
+				.onClick(async () => {
+						await this.plugin.commands.moveAllTasksToDefaultProject();
+					}
+				));
 
 		new Setting(containerEl).setHeading().setName('Pull: Obsidian <- Vikunja').setDesc('');
 
@@ -343,6 +468,17 @@ export class MainSetting extends PluginSettingTab {
 				);
 		}
 
+		new Setting(containerEl)
+			.setName("Pull tasks only from default project")
+			.setDesc("If enabled, only tasks from the default project will be pulled from Vikunja. Useful, if you use Vikunja with several apps or different projects and Obsidian is only one of them. Beware: If you select that labels should be deleted in vikunja, if not found in vault, this will sync all labels regardless of projects.")
+			.addToggle(toggle =>
+				toggle
+					.setValue(this.plugin.settings.pullTasksOnlyFromDefaultProject)
+					.onChange(async (value: boolean) => {
+						this.plugin.settings.pullTasksOnlyFromDefaultProject = value;
+						await this.plugin.saveSettings();
+					}));
+
 
 		new Setting(containerEl)
 			.setHeading()
@@ -421,28 +557,9 @@ export class MainSetting extends PluginSettingTab {
 			return;
 		}
 
-
 		new Setting(containerEl)
-			.setHeading()
-			.setName("Updates: Obsidian <-> Vikunja")
-
-		new Setting(containerEl)
-			.setDesc("This plugin prioritizes changes in Obsidian over Vikunja. This means, that if you make changes in both systems, the changes in Obsidian will be used over the one in Vikunja. To prevent data loss, do not make any changes in your markdown files without Obsidian.");
-
-		new Setting(containerEl)
-			.setName("Check for updates on startup")
-			.setDesc("This will check for changes in Vault and Vikunja and update the tasks vice versa, but prioritize the changes in Obsidian. Useful, if you want to use Vikunja, but do not make any changes directly on the markdown files while obsidian is closed.")
-			.addToggle(toggle =>
-				toggle
-					.setValue(this.plugin.settings.updateOnStartup)
-					.onChange(async (value: boolean) => {
-						this.plugin.settings.updateOnStartup = value;
-						await this.plugin.saveSettings();
-					}));
-
-		new Setting(containerEl)
-			.setName("Check for updates on cursor movement")
-			.setDesc("This will check for changes only on cursors last line in Vault. Useful, if you want to reduce the load on your system and faster updates.")
+			.setName("Check for changes on cursor movement")
+			.setDesc("This will check for changes on cursors last line in Vault, too. Useful, if you want to reduce the load on your system and faster updates.")
 			.addToggle(toggle =>
 				toggle
 					.setValue(this.plugin.settings.updateOnCursorMovement)
@@ -452,88 +569,17 @@ export class MainSetting extends PluginSettingTab {
 					}));
 
 		new Setting(containerEl)
-			.setName("Select default project")
-			.setDesc("This project will be used to place new tasks created by this plugin.")
-			.addDropdown(async dropdown => {
-					if (this.plugin.settings.debugging) {
-						console.log(`SettingsTab: Got projects:`, this.projects);
-					}
-
-					for (const project of this.projects) {
-						if (project.id === undefined || project.title === undefined) {
-							throw new Error("Project id or title is undefined");
-						}
-						dropdown.addOption(project.id.toString(), project.title);
-					}
-
-					dropdown.setValue(this.plugin.settings.defaultVikunjaProject.toString());
-
-					dropdown.onChange(async (value: string) => {
-						this.plugin.settings.defaultVikunjaProject = parseInt(value);
-						if (this.plugin.settings.debugging) console.log(`SettingsTab: Selected Vikunja project:`, this.plugin.settings.defaultVikunjaProject);
-
-						this.plugin.settings.availableViews = await this.plugin.projectsApi.getViewsByProjectId(this.plugin.settings.defaultVikunjaProject);
-						if (this.plugin.settings.debugging) console.log(`SettingsTab: Available views:`, this.plugin.settings.availableViews);
-
-						if (this.plugin.settings.availableViews.length === 1) {
-							const id = this.plugin.settings.availableViews[0].id;
-							if (id === undefined) throw new Error("View id is undefined");
-							this.plugin.settings.selectedView = id;
-							this.plugin.settings.selectBucketForDoneTasks = await this.plugin.projectsApi.getDoneBucketIdFromKanbanView(this.plugin.settings.defaultVikunjaProject);
-							if (this.plugin.settings.debugging) console.log(`SettingsTab: Done bucket set to:`, this.plugin.settings.selectBucketForDoneTasks);
-						}
-						await this.plugin.saveSettings();
-						this.display();
-					});
-				}
-			)
-
-		if (this.plugin.settings.availableViews.length > 1) {
-			new Setting(containerEl)
-				.setName("Select bucket")
-				.setDesc("Because vikunja does not move done tasks to the correct bucket, you have to select the bucket where the done tasks are placed, so this plugin can do it for you.")
-				.addDropdown(dropdown => {
-					let i = 0;
-					for (const view of this.plugin.settings.availableViews) {
-						if (view.id === undefined || view.title === undefined) {
-							throw new Error("View id or title is undefined");
-						}
-						dropdown.addOption((i++).toString(), view.title);
-					}
-
-					dropdown.setValue(this.plugin.settings.selectedView.toString());
-
-					dropdown.onChange(async (value: string) => {
-						this.plugin.settings.selectedView = parseInt(value);
-						if (this.plugin.settings.debugging) console.log(`SettingsTab: Selected Vikunja bucket:`, this.plugin.settings.selectedView);
-
-						this.plugin.settings.selectBucketForDoneTasks = await this.plugin.projectsApi.getDoneBucketIdFromKanbanView(this.plugin.settings.defaultVikunjaProject);
-						if (this.plugin.settings.debugging) console.log(`SettingsTab: Done bucket set to:`, this.plugin.settings.selectBucketForDoneTasks);
-						await this.plugin.saveSettings();
-					});
-				});
-		}
-
-		new Setting(containerEl)
-			.setName("Pull tasks only from default project")
-			.setDesc("If enabled, only tasks from the default project will be pulled from Vikunja. Useful, if you use Vikunja with several apps or different projects and Obsidian is only one of them. Beware: If you select that labels should be deleted in vikunja, if not found in vault, this will sync all labels regardless of projects.")
+			.setName("Update completed status immediately")
+			.setDesc("This will update the completed status of tasks immediately to Vikunja.")
 			.addToggle(toggle =>
 				toggle
-					.setValue(this.plugin.settings.pullTasksOnlyFromDefaultProject)
+					.setValue(this.plugin.settings.updateCompletedStatusImmediately)
 					.onChange(async (value: boolean) => {
-						this.plugin.settings.pullTasksOnlyFromDefaultProject = value;
+						this.plugin.settings.updateCompletedStatusImmediately = value;
 						await this.plugin.saveSettings();
 					}));
 
-		new Setting(containerEl)
-			.setName("Move all tasks to selected default project")
-			.setDesc("This will move all tasks from Vault to the selected default project in Vikunja. This will not delete any tasks in Vikunja, but only move them to the selected project. This helps, if you make a wrong decision in the past. This does not create any tasks in Vikunja.")
-			.addButton(button => button
-				.setButtonText("Move all tasks")
-				.onClick(async () => {
-						await this.plugin.commands.moveAllTasksToDefaultProject();
-					}
-				));
+
 	}
 
 	async loadApi() {
@@ -546,6 +592,29 @@ export class MainSetting extends PluginSettingTab {
 		if (this.plugin.settings.debugging) console.log(`SettingsTab: Default project set to:`, this.projects[0].id);
 
 		this.display();
+	}
+
+	private startCacheListener() {
+		if (this.plugin.settings.debugging) console.log("SettingsTab: Start cache listener");
+		window.clearInterval(this.cacheListener);
+		this.cacheListener = window.setInterval(async () => {
+			await this.plugin.cache.saveCacheToDisk()
+		}, this.plugin.settings.saveCacheToDiskFrequency * 60 * 1000);
+		this.plugin.registerInterval(this.cacheListener);
+	}
+
+	private startCronListener() {
+		if (this.plugin.settings.debugging) console.log("SettingsTab: Start cron listener");
+		window.clearInterval(this.cronListener);
+		this.cronListener = window
+			.setInterval(async () => {
+					// this runs anyway, also when cron not enabled, to be dynamically enabled by settings without disable/enable plugin
+					if (this.plugin.settings.enableCron) {
+						await this.plugin.processor.exec()
+					}
+				},
+				this.plugin.settings.cronInterval * 1000)
+		this.plugin.registerInterval(this.cronListener);
 	}
 
 	private resetApis() {
