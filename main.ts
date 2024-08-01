@@ -147,6 +147,9 @@ export default class VikunjaPlugin extends Plugin {
 	}
 
 	private async handleClickEvent(evt: MouseEvent) {
+		if (!this.settings.updateOnCursorMovement) {
+			return;
+		}
 		const target = evt.target as HTMLInputElement;
 		if (this.app.workspace.activeEditor?.editor?.hasFocus()) {
 			await this.checkLastLineForUpdate();
