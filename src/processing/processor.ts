@@ -80,8 +80,9 @@ class Processor {
 			return;
 		}
 		await this.app.vault.process(file, data => {
+			let content;
 			if (this.plugin.settings.appendMode) {
-				return data + "\n" + newTask;
+				content = data + "\n" + newTask;
 			} else {
 				const lines = data.split("\n");
 				for (let i = 0; i < lines.length; i++) {
@@ -90,10 +91,10 @@ class Processor {
 						break;
 					}
 				}
-				const content = lines.join("\n");
-				this.plugin.cache.update(task);
-				return content;
+				content = lines.join("\n");
 			}
+			this.plugin.cache.update(task);
+			return content;
 		});
 	}
 
