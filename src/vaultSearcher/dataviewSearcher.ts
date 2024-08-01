@@ -69,7 +69,7 @@ export class DataviewSearcher implements VaultSearcher {
 				parsed.updated = moment(file.stat.mtime).format("YYYY-MM-DDTHH:mm:ss[Z]");
 			}
 
-			const vaultParsed = new PluginTask(file, task.line, parsed);
+			const vaultParsed = new PluginTask(file.path, task.line, parsed);
 			if (this.plugin.settings.debugging) console.log("DataviewSearcher: Parsed task", parsed);
 			tasksFormatted.push(vaultParsed);
 		}

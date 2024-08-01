@@ -75,7 +75,11 @@ class Processor {
 	async saveToVault(task: PluginTask) {
 		const newTask = this.getTaskContent(task);
 
-		await this.app.vault.process(task.file, data => {
+		const file = this.app.vault.getFileByPath(task.filepath);
+		if (file === null) {
+			return;
+		}
+		await this.app.vault.process(file, data => {
 			if (this.plugin.settings.appendMode) {
 				return data + "\n" + newTask;
 			} else {
@@ -86,8 +90,9 @@ class Processor {
 						break;
 					}
 				}
+				const content = lines.join("\n");
 				this.plugin.cache.update(task);
-				return lines.join("\n");
+				return content;
 			}
 		});
 	}
@@ -176,7 +181,7 @@ class Processor {
 			if (this.plugin.settings.debugging) console.log("Processor: Last line,", lastLine, "Last line text", lastLineText);
 			try {
 				const parsedTask = await this.taskParser.parse(lastLineText);
-				updatedTask = new PluginTask(file, lastLine, parsedTask);
+				updatedTask = new PluginTask(file.path, lastLine, parsedTask);
 				if (updatedTask.task.id === undefined) {
 					return undefined;
 				}
@@ -205,14 +210,18 @@ class Processor {
 	*/
 	async updateToVault(task: PluginTask, metadata: boolean = true) {
 		const newTask = (metadata) ? this.getTaskContent(task) : this.getTaskContentWithoutVikunja(task);
-
-		await this.app.vault.process(task.file, (data: string) => {
+		const file = this.app.vault.getFileByPath(task.filepath);
+		if (file === null) {
+			return;
+		}
+		await this.app.vault.process(file, (data: string) => {
 			const lines = data.split("\n");
 			lines.splice(task.lineno, 1, newTask);
-			return lines.join("\n");
+			const content = lines.join("\n");
+			this.plugin.cache.update(task);
+			return content;
 		});
 
-		this.plugin.cache.update(task);
 	}
 
 	getVaultSearcher(): VaultSearcher {
@@ -292,7 +301,7 @@ class Processor {
 				default:
 					throw new Error("No valid chooseOutputFile selected");
 			}
-			const pluginTask = new PluginTask(file, 0, task);
+			const pluginTask = new PluginTask(file.path, 0, task);
 			createdTasksInVault.push(pluginTask);
 		}
 

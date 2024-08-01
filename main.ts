@@ -40,16 +40,20 @@ export default class VikunjaPlugin extends Plugin {
 
 	async loadSettings() {
 		this.settings = Object.assign({}, DEFAULT_SETTINGS, await this.loadData());
+		this.cache = VaultTaskCache.fromJson(this.settings.cache, this.app, this);
 	}
 
 	async saveSettings() {
+		this.settings.cache = this.cache.getCachedTasks().map(task => {
+			return task.toJson();
+		});
 		await this.saveData(this.settings);
 	}
 
 	async checkLastLineForUpdate() {
 		if (this.settings.debugging) console.log("Checking for task update");
 		const updateTask = await this.processor.checkUpdateInLineAvailable()
-		if (!!updateTask) {
+		if (updateTask !== undefined) {
 			await this.tasksApi.updateTask(updateTask.task);
 		} else {
 			if (this.settings.debugging) console.log("No task to update found");

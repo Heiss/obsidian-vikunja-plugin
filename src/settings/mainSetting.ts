@@ -30,7 +30,7 @@ export interface VikunjaPluginSettings {
 	availableViews: ModelsProjectView[],
 	selectedView: number,
 	selectBucketForDoneTasks: number,
-	cache: Map<number, PluginTask>, // do not touch! Only via settings/VaultTaskCache.ts
+	cache: PluginTask[], // do not touch! Only via settings/VaultTaskCache.ts
 	saveCacheToDiskFrequency: number,
 }
 
@@ -59,7 +59,7 @@ export const DEFAULT_SETTINGS: VikunjaPluginSettings = {
 	availableViews: [],
 	selectedView: 0,
 	selectBucketForDoneTasks: 0,
-	cache: new Map<number, PluginTask>(),
+	cache: [],
 	saveCacheToDiskFrequency: 1,
 }
 
@@ -162,6 +162,7 @@ export class MainSetting extends PluginSettingTab {
 				.onChange(async (value: boolean) => {
 					this.plugin.settings.enableCron = value;
 					await this.plugin.saveSettings();
+					this.startCronListener();
 					this.display();
 				}));
 
@@ -193,6 +194,7 @@ export class MainSetting extends PluginSettingTab {
 
 							this.plugin.settings.cronInterval = parseInt(value);
 							await this.plugin.saveSettings();
+							this.startCronListener();
 						}
 					));
 		}
@@ -204,7 +206,7 @@ export class MainSetting extends PluginSettingTab {
 				.setValue(this.plugin.settings.saveCacheToDiskFrequency.toString())
 				.onChange(async (value: string) => {
 						const parsedNumber = parseInt(value);
-						if (isNaN(parsedNumber)) {
+						if (Number.isNaN(parsedNumber)) {
 							return;
 						}
 						const lowerThanMax = Math.min(parsedNumber, 60);
@@ -579,12 +581,16 @@ export class MainSetting extends PluginSettingTab {
 	}
 
 	private startCacheListener() {
+		if (this.plugin.settings.debugging) console.log("SettingsTab: Start cache listener");
 		window.clearInterval(this.cacheListener);
-		this.cacheListener = window.setInterval(this.plugin.cache.saveCacheToDisk.bind(this), this.plugin.settings.saveCacheToDiskFrequency * 60 * 1000);
+		this.cacheListener = window.setInterval(async () => {
+			await this.plugin.cache.saveCacheToDisk()
+		}, this.plugin.settings.saveCacheToDiskFrequency * 60 * 1000);
 		this.plugin.registerInterval(this.cacheListener);
 	}
 
 	private startCronListener() {
+		if (this.plugin.settings.debugging) console.log("SettingsTab: Start cron listener");
 		window.clearInterval(this.cronListener);
 		this.cronListener = window
 			.setInterval(async () => {
