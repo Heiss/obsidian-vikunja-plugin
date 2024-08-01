@@ -270,8 +270,12 @@ class Processor {
 		for (const task of tasksToPushToVault) {
 			let file: TFile;
 			const chosenFile = this.app.vault.getFileByPath(this.plugin.settings.chosenOutputFile);
-			// FIXME This should be the date of the vikunja created date, so the task is created in the correct daily note
-			const date = moment();
+			const formattedDate = task.created;
+			let date = moment();
+			if (formattedDate !== undefined) {
+				if (this.plugin.settings.debugging) console.log("Step CreateTask: Found formatted date", formattedDate, "using it as daily note");
+				date = moment(formattedDate, "YYYY-MM-DDTHH:mm:ss[Z]");
+			}
 			const dailies = getAllDailyNotes()
 
 			switch (this.plugin.settings.chooseOutputFile) {
