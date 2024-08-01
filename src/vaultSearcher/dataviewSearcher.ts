@@ -66,7 +66,7 @@ export class DataviewSearcher implements VaultSearcher {
 				parsed.updated = cachedTask.task.updated;
 			} else {
 				if (this.plugin.settings.debugging) console.log("DataviewSearcher: Fallback to file modified date");
-				parsed.updated = moment(file.stat.ctime).format("YYYY-MM-DDTHH:mm:ss[Z]");
+				parsed.updated = moment(file.stat.mtime).format("YYYY-MM-DDTHH:mm:ss[Z]");
 			}
 
 			const vaultParsed = new PluginTask(file, task.line, parsed);

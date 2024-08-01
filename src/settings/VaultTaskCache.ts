@@ -29,10 +29,13 @@ export default class VaultTaskCache {
 		if (local.task.id === undefined) {
 			throw new Error("VaultTaskCache: Task id is not defined");
 		}
-		const currentDate = moment().format("YYYY-MM-DDTHH:mm:ss[Z]");
-		if (this.plugin.settings.debugging) console.log("VaultTaskCache: Updating task", local.task.id, "with updated date", currentDate);
-		local.task.updated = currentDate;
 
+		const cachedTask = this.get(local.task.id);
+		const currentDate = moment().format("YYYY-MM-DDTHH:mm:ss[Z]");
+		if (cachedTask !== undefined && !cachedTask.isTaskEqual(local.task)) {
+			if (this.plugin.settings.debugging) console.log("VaultTaskCache: Updating task", local.task.id, "with updated date", currentDate);
+			local.task.updated = currentDate;
+		}
 		this.plugin.settings.cache.set(local.task.id, local);
 		this.changesMade = true;
 	}

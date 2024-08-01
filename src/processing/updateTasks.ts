@@ -44,13 +44,10 @@ class UpdateTasks implements IAutomatonSteps {
 	 */
 	private splitTaskAfterUpdatedStatus(localTasks: PluginTask[], vikunjaTasks: ModelsTask[]): UpdatedSplit {
 		if (this.plugin.settings.debugging) console.log("Step UpdateTask: Find tasks which have updates on the other platform");
-		const cacheLocalTasks = this.plugin.cache.getCachedTasks();
-
-		// TODO Check for localTasks which circumvent the cache, how do i find this out!?
 
 		let tasksToUpdateInVault: PluginTask[] = [];
 		let tasksToUpdateInVikunja: PluginTask[] = [];
-		for (const task of cacheLocalTasks) {
+		for (const task of localTasks) {
 			const vikunjaTask = vikunjaTasks.find(vikunjaTask => vikunjaTask.id === task.task.id);
 			if (this.plugin.settings.debugging) console.log("Step UpdateTask: found Vikunja task", vikunjaTask, " for Vault task", task.task);
 			if (!vikunjaTask) continue;

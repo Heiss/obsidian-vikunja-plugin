@@ -86,11 +86,10 @@ class Processor {
 						break;
 					}
 				}
+				this.plugin.cache.update(task);
 				return lines.join("\n");
 			}
 		});
-
-		this.plugin.cache.update(task);
 	}
 
 	getTaskContent(task: PluginTask): string {

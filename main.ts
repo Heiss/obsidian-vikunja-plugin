@@ -126,7 +126,7 @@ export default class VikunjaPlugin extends Plugin {
 		for (const task of tasks) {
 			if (task.task.id) {
 				const cachedTask = this.cache.get(task.task.id);
-				if (cachedTask === undefined || !cachedTask.isEquals(task)) {
+				if (cachedTask === undefined || !cachedTask.isTaskEqual(task.task)) {
 					this.cache.update(task);
 				}
 			}
