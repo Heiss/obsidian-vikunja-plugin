@@ -50,6 +50,18 @@ export default class VaultTaskCache {
 		this.changesMade = false;
 	}
 
+	updateFileInfos(id: number, filepath: string, lineno: number) {
+		const cachedTask = this.get(id);
+		if (cachedTask === undefined) {
+			throw new Error("VaultTaskCache: Task is not in cache");
+		}
+		if (this.plugin.settings.debugging) console.log("VaultTaskCache: Updating task", id, "with updated file infos", filepath, lineno);
+		cachedTask.filepath = filepath;
+		cachedTask.lineno = lineno;
+		this.cache.set(id, cachedTask);
+		this.changesMade = true;
+	}
+
 	update(local: PluginTask) {
 		if (local.task.id === undefined) {
 			throw new Error("VaultTaskCache: Task id is not defined");

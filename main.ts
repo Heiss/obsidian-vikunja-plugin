@@ -132,6 +132,10 @@ export default class VikunjaPlugin extends Plugin {
 				const cachedTask = this.cache.get(task.task.id);
 				if (cachedTask === undefined || !cachedTask.isTaskEqual(task.task)) {
 					this.cache.update(task);
+				} else {
+					if (cachedTask.lineno !== task.lineno || cachedTask.filepath !== task.filepath) {
+						this.cache.updateFileInfos(task.task.id, task.filepath, task.lineno);
+					}
 				}
 			}
 		}
