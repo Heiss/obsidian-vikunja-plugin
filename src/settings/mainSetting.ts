@@ -60,7 +60,7 @@ export const DEFAULT_SETTINGS: VikunjaPluginSettings = {
 	selectedView: 0,
 	selectBucketForDoneTasks: 0,
 	cache: new Map<number, PluginTask>(),
-	saveCacheToDiskFrequency: 10,
+	saveCacheToDiskFrequency: 1,
 }
 
 export class MainSetting extends PluginSettingTab {
@@ -199,11 +199,19 @@ export class MainSetting extends PluginSettingTab {
 
 		new Setting(containerEl)
 			.setName("Save cache to disk frequency")
-			.setDesc("Set the interval in minutes to save the cache to disk. Lower values will result in more frequent saves, but may cause performance issues. Limits are 1 to 60. This will be enforced by the plugin.")
+			.setDesc("This plugin uses a cache to calculate correct dates. Set the interval in minutes to save the cache to disk. Lower values will result in more frequent saves, but may cause performance issues. Set too high, task dates are not correctly calculated, because they are missing in cache in next startup. If you make bulk edits of tasks in your vault, you should set higher value. Cache will be only written, if changes were made since last check. If you are unsure, try lowest value and increase it, if you experience performance issues. Limits are 1 to 60 minutes.")
 			.addText(text => text
 				.setValue(this.plugin.settings.saveCacheToDiskFrequency.toString())
 				.onChange(async (value: string) => {
-						this.plugin.settings.saveCacheToDiskFrequency = Math.max(Math.min(parseInt(value), 60), 1);
+						const parsedNumber = parseInt(value);
+						if (isNaN(parsedNumber)) {
+							return;
+						}
+						const lowerThanMax = Math.min(parsedNumber, 60);
+						if (this.plugin.settings.debugging) console.log("Save cache to disk frequency - high limits", lowerThanMax);
+						const higherThanMin = Math.max(lowerThanMax, 1);
+						if (this.plugin.settings.debugging) console.log("Save cache to disk frequency - low limits", higherThanMin);
+						this.plugin.settings.saveCacheToDiskFrequency = higherThanMin;
 						await this.plugin.saveSettings();
 						this.startCacheListener();
 					}

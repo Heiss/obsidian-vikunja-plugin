@@ -10,14 +10,19 @@ import {PluginTask} from "../vaultSearcher/vaultSearcher";
 export default class VaultTaskCache {
 	plugin: VikunjaPlugin;
 	app: App;
+	changesMade: boolean;
 
 	constructor(app: App, plugin: VikunjaPlugin) {
 		this.app = app;
 		this.plugin = plugin;
+		this.changesMade = false;
 	}
 
 	async saveCacheToDisk() {
-		await this.plugin.saveSettings();
+		if (this.changesMade) {
+			await this.plugin.saveSettings();
+		}
+		this.changesMade = false;
 	}
 
 	update(local: PluginTask) {
@@ -29,6 +34,7 @@ export default class VaultTaskCache {
 		local.task.updated = currentDate;
 
 		this.plugin.settings.cache.set(local.task.id, local);
+		this.changesMade = true;
 	}
 
 	get(id: number): PluginTask | undefined {
@@ -40,6 +46,7 @@ export default class VaultTaskCache {
 	*/
 	delete(id: number) {
 		this.plugin.settings.cache.delete(id);
+		this.changesMade = true;
 	}
 
 	/*
@@ -51,5 +58,6 @@ export default class VaultTaskCache {
 
 	reset() {
 		this.plugin.settings.cache.clear();
+		this.changesMade = true;
 	}
 }
