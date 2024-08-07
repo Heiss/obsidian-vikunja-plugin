@@ -6,6 +6,7 @@ import VikunjaPlugin from "../../main";
 import {PluginTask} from "../vaultSearcher/vaultSearcher";
 import {ConfirmModal} from "../modals/confirmModal";
 import VikunjaAPI from "../vikunja/VikunjaAPI";
+import {ModelsLabel} from "../../vikunja_sdk";
 
 export default class Commands {
 	private plugin: VikunjaPlugin;
@@ -124,7 +125,12 @@ export default class Commands {
 
 				while (true) {
 					const tasks = await this.plugin.tasksApi.getAllTasks();
-					const labels = await this.plugin.labelsApi.labelsApi.labelsGet();
+					let labels: ModelsLabel[] = [];
+					try {
+						labels = await this.plugin.labelsApi.labelsApi.labelsGet();
+					} catch (error) {
+						console.error("Error getting labels", error);
+					}
 
 					if (tasks.length === 0 && labels.length === 0) {
 						if (this.plugin.settings.debugging) console.log("No tasks and labels found in Vikunja");

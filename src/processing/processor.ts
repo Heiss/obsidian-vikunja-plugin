@@ -219,7 +219,14 @@ class Processor {
 			const lines = data.split("\n");
 			lines.splice(task.lineno, 1, newTask);
 			const content = lines.join("\n");
-			this.plugin.cache.update(task);
+			try {
+				this.plugin.cache.update(task);
+			} catch (e) {
+				if (metadata) {
+					// raise error again, if metadata was wanted! otherwise it is expected, that update will fail.
+					throw e;
+				}
+			}
 			return content;
 		});
 
