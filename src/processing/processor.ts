@@ -174,19 +174,14 @@ class Processor {
 				const parsedTask = await this.taskParser.parse(lastLineText);
 				updatedTask = new PluginTask(file.path, lastLine, parsedTask);
 				if (updatedTask.task.id === undefined) {
-					return undefined;
+					return;
 				}
 				const cacheTask = this.plugin.cache.get(updatedTask.task.id);
 				if (cacheTask === undefined) {
 					if (this.plugin.settings.debugging) console.error("Processor: Should not be here, because if this task is not in cache, but has an id, it circumvented the cache.")
-					return undefined;
+					return;
 				}
-				if (compareModelTasks(updatedTask.task, cacheTask.task)) {
-					// Cache and current task are equal, so no update is needed
-					return undefined;
-				}
-				// no guard check fires, so there is an update.
-				this.plugin.cache.update(updatedTask);
+				await this.plugin.tasksApi.updateTask(updatedTask);
 			} catch (e) {
 				if (this.plugin.settings.debugging) console.log("Processor: Error while parsing task", e);
 			}
