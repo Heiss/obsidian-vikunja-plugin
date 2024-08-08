@@ -154,16 +154,12 @@ export default class VikunjaPlugin extends Plugin {
 	}
 
 	private async handleClickEvent(evt: MouseEvent) {
-		if (!this.settings.updateOnCursorMovement) {
+		if (!this.settings.updateCompletedStatusImmediately) {
 			return;
 		}
 
 		const target = evt.target as HTMLInputElement;
-		if (this.app.workspace.activeEditor?.editor?.hasFocus()) {
-			await this.checkLastLineForUpdate();
-		}
 		if (target.type === "checkbox") {
-			if (this.settings.debugging) console.log("Checkbox clicked");
 			const taskElement = target.closest("div");
 			if (!taskElement) {
 				if (this.settings.debugging) console.log("No task element found for checkbox");
@@ -175,22 +171,32 @@ export default class VikunjaPlugin extends Plugin {
 			const match = taskElement.textContent?.match(regex) || false;
 			if (match) {
 				const taskId = parseInt(match[1]);
-				const task = await this.processor.getTaskParser().parse(`- [${target.checked ? "X" : " "}] ${taskElement.textContent || ""} [vikunja_id:: ${taskId}]`);
-				if (task.id === undefined) {
-					if (this.settings.debugging) console.log("No task id found in task");
+				const cachedTask = this.cache.get(taskId);
+				if (cachedTask === undefined || cachedTask.task.id === undefined) {
+					if (this.settings.debugging) console.log("No task or task id found in task");
 					return;
 				}
-				if (this.settings.debugging) console.log("Checkbox clicked for task", taskId, "cached task", task, "found task", task);
-				const cachedTask = this.cache.get(task.id);
 
-				if (cachedTask !== undefined) {
-					cachedTask.task = task;
-					await this.tasksApi.updateTask(cachedTask);
-					// FIXME update the checked status in vikunja. add a settings option for it
+				let status = false;
+				switch (target.dataset.task) {
+					case "x": {
+						status = true;
+						break;
+					}
+					case " ": {
+						status = false;
+						break;
+					}
+					default:
+						throw new Error("Unknown task status");
 				}
-			} else {
-				if (this.settings.debugging) console.log("No task id found for checkbox");
+				if (this.settings.debugging) console.log("Checkbox clicked", status, target.dataset.task, target);
+				// We are too fast, so this status shows the status BEFORE the click.
+				cachedTask.task.done = !status;
+				await this.tasksApi.updateTask(cachedTask);
 			}
+		} else {
+			if (this.settings.debugging) console.log("No task id found for checkbox");
 		}
 	}
 }
