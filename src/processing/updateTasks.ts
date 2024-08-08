@@ -90,7 +90,12 @@ class UpdateTasks implements IAutomatonSteps {
 	private async updateTasksInVikunja(updateTasks: PluginTask[]) {
 		if (this.plugin.settings.debugging) console.log("Step UpdateTask: Update tasks in vikunja");
 
-		await Promise.all(updateTasks.map(task => this.plugin.tasksApi.updateTask(task)));
+		await Promise.all(updateTasks.map(async task => {
+			const answer = await this.plugin.tasksApi.updateTask(task)
+			if (this.plugin.settings.debugging) console.log("Step UpdateTask: Updated task in Vikunja", task, answer);
+			task.task = answer;
+			await this.updateTasksInVault([task]);
+		}));
 	}
 
 	private async updateTasksInVault(updateTasks: PluginTask[]) {

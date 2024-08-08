@@ -44,6 +44,8 @@ export default class VaultTaskCache {
 
 	async saveCacheToDisk() {
 		if (this.changesMade) {
+			this.plugin.settings.cache = this.getCachedTasks().map(task => task.toJson());
+			if (this.plugin.settings.debugging) console.log("VaultTaskCache: Updated cache in settings", this.plugin.settings.cache);
 			if (this.plugin.settings.debugging) console.log("VaultTaskCache: Saving cache to disk");
 			await this.plugin.saveSettings();
 		}
@@ -76,8 +78,6 @@ export default class VaultTaskCache {
 		this.cache.set(local.task.id, local);
 
 		console.log("VaultTaskCache: Updated cache", this.cache);
-		this.plugin.settings.cache = this.getCachedTasks().map(task => task.toJson());
-		console.log("VaultTaskCache: Updated cache in settings", this.plugin.settings.cache);
 		this.changesMade = true;
 	}
 
@@ -93,9 +93,6 @@ export default class VaultTaskCache {
 		this.changesMade = true;
 	}
 
-	/*
-	* Do not forget to call delete after processing the tasks.
-	*/
 	getCachedTasks(): PluginTask[] {
 		return Array.from(this.cache.values());
 	}

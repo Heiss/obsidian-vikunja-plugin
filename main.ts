@@ -119,6 +119,10 @@ export default class VikunjaPlugin extends Plugin {
 	}
 
 	private async handleEditorChange(data: any) {
+		if (!this.settings.updateOnCursorMovement) {
+			return;
+		}
+
 		if (this.settings.debugging) console.log("Editor changed", data);
 		const currentFile = this.app.workspace.getActiveFile();
 		if (!currentFile) {
@@ -154,6 +158,7 @@ export default class VikunjaPlugin extends Plugin {
 		if (!this.settings.updateOnCursorMovement) {
 			return;
 		}
+
 		const target = evt.target as HTMLInputElement;
 		if (this.app.workspace.activeEditor?.editor?.hasFocus()) {
 			await this.checkLastLineForUpdate();
@@ -165,18 +170,24 @@ export default class VikunjaPlugin extends Plugin {
 				if (this.settings.debugging) console.log("No task element found for checkbox");
 				return;
 			}
-			if (this.settings.debugging) console.log("Task element found for checkbox", taskElement.textContent);
+
+			if (this.settings.debugging) console.log("Task element found for checkbox",);
 			const regex = /\svikunja_id(\d+)\s*/; // this ugly stuff is needed, because textContent remove all markdown related stuff
 			const match = taskElement.textContent?.match(regex) || false;
 			if (match) {
 				const taskId = parseInt(match[1]);
-				if (this.settings.debugging) console.log("Checkbox clicked for task", taskId);
-				const task = await this.tasksApi.getTaskById(taskId);
-				const cachedTask = this.cache.get(taskId);
+				const task = await this.processor.getTaskParser().parse(`- [${target.checked ? "X" : " "}] ${taskElement.textContent || ""} [vikunja_id:: ${taskId}]`);
+				if (task.id === undefined) {
+					if (this.settings.debugging) console.log("No task id found in task");
+					return;
+				}
+				if (this.settings.debugging) console.log("Checkbox clicked for task", taskId, "cached task", task, "found task", task);
+				const cachedTask = this.cache.get(task.id);
+
 				if (cachedTask !== undefined) {
 					cachedTask.task = task;
-					cachedTask.task.done = target.checked;
 					await this.tasksApi.updateTask(cachedTask);
+					// FIXME update the checked status in vikunja. add a settings option for it
 				}
 			} else {
 				if (this.settings.debugging) console.log("No task id found for checkbox");

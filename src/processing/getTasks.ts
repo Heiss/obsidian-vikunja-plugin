@@ -5,6 +5,7 @@ import VikunjaPlugin from "../../main";
 import {App} from "obsidian";
 import {TaskParser} from "../taskFormats/taskFormats";
 import {Processor} from "./processor";
+import {backendToFindTasks} from "../enums";
 
 class GetTasks implements IAutomatonSteps {
 	app: App;
@@ -23,14 +24,7 @@ class GetTasks implements IAutomatonSteps {
 	}
 
 	async step(_1: PluginTask[], _2: ModelsTask[]): Promise<StepsOutput> {
-		// Get all tasks in vikunja and vault
-		if (this.plugin.settings.debugging) console.log("Step GetTask: Pulling tasks from vault");
-		const localTasks = await this.getTasksFromVault();
-		if (this.plugin.settings.debugging) console.log("Step GetTask: Got tasks from vault", localTasks);
-
-		if (this.plugin.settings.debugging) console.log("Step GetTask: Pulling tasks from Vikunja");
-		let vikunjaTasks = await this.getTasksFromVikunja();
-		if (this.plugin.settings.debugging) console.log("Step GetTask: Got tasks from Vikunja", vikunjaTasks);
+		let [localTasks, vikunjaTasks] = await Promise.all([this.getTasksFromVault(), this.getTasksFromVikunja()]);
 
 		if (this.plugin.settings.pullTasksOnlyFromDefaultProject) {
 			if (this.plugin.settings.debugging) console.log("Step GetTask: Filtering tasks to only default project");
@@ -42,12 +36,48 @@ class GetTasks implements IAutomatonSteps {
 		return {localTasks, vikunjaTasks};
 	}
 
+	/*
+	* This function is used to wait for the dataview index to be ready.
+	* Because dataview only indexing, if something changed, but sync does not know if anything changed recently,
+	* we need to trigger it manually.
+	 */
+	private async handleDataviewIndex() {
+		const currentFile = this.app.workspace.getActiveFile();
+		if (!currentFile) {
+			throw new Error("No active file");
+		}
+		let dataViewIndexReady = false;
+		// @ts-ignore
+		this.plugin.registerEvent(this.plugin.app.metadataCache.on("dataview:metadata-change", () => {
+			dataViewIndexReady = true;
+		}));
+
+		do {
+			if (this.plugin.settings.debugging) console.log("Step GetTask: Waiting for dataview index to be ready");
+			await new Promise(resolve => setTimeout(resolve, 1000));
+			this.app.metadataCache.trigger("resolve", currentFile);
+		} while (!dataViewIndexReady)
+
+	}
+
 	private async getTasksFromVault(): Promise<PluginTask[]> {
+		if (this.plugin.settings.backendToFindTasks === backendToFindTasks.Dataview) {
+			await this.handleDataviewIndex();
+		}
+
+		if (this.plugin.settings.updateOnCursorMovement) {
+			const tasks = this.plugin.cache.getCachedTasks();
+			if (this.plugin.settings.debugging) console.log("GetTasks: Using cache", tasks);
+			return tasks;
+		}
+		if (this.plugin.settings.debugging) console.log("Step GetTask: Pulling tasks from vault");
 		return await this.vaultSearcher.getTasks(this.taskParser);
 	}
 
 	private async getTasksFromVikunja(): Promise<ModelsTask[]> {
-		return await this.plugin.tasksApi.getAllTasks();
+		const tasks = await this.plugin.tasksApi.getAllTasks();
+		if (this.plugin.settings.debugging) console.log("Step GetTask: Got tasks from Vikunja", tasks);
+		return tasks;
 	}
 
 }
