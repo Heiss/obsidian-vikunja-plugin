@@ -65,11 +65,6 @@ class GetTasks implements IAutomatonSteps {
 			await this.handleDataviewIndex();
 		}
 
-		if (this.plugin.settings.updateOnCursorMovement) {
-			const tasks = this.plugin.cache.getCachedTasks();
-			if (this.plugin.settings.debugging) console.log("GetTasks: Using cache", tasks);
-			return tasks;
-		}
 		if (this.plugin.settings.debugging) console.log("Step GetTask: Pulling tasks from vault");
 		return await this.vaultSearcher.getTasks(this.taskParser);
 	}

@@ -83,7 +83,6 @@ export default class VikunjaPlugin extends Plugin {
 		this.userObject = undefined;
 		this.labelsApi = new Label(this.app, this);
 		this.projectsApi = new Projects(this.app, this);
-		this.cache = new VaultTaskCache(this.app, this);
 	}
 
 	private setupCommands() {

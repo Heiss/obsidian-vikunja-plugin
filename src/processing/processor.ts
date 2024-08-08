@@ -2,8 +2,7 @@ import Plugin from "../../main";
 import {App, MarkdownView, moment, Notice, TFile} from "obsidian";
 import {PluginTask, VaultSearcher} from "../vaultSearcher/vaultSearcher";
 import {TaskFormatter, TaskParser} from "../taskFormats/taskFormats";
-import {Automaton, AutomatonStatus, IAutomatonSteps} from "./automaton";
-import UpdateTasks from "./updateTasks";
+import {Automaton, AutomatonStatus} from "./automaton";
 import {EmojiTaskFormatter, EmojiTaskParser} from "../taskFormats/emojiTaskFormat";
 import {backendToFindTasks, chooseOutputFile, supportedTasksPluginsFormat} from "../enums";
 import {DataviewSearcher} from "../vaultSearcher/dataviewSearcher";
@@ -119,23 +118,14 @@ class Processor {
 	 * This method should only be triggered on startup of obsidian and only once. After this, we cannot guerantee that the updated information of files are in sync.
 	 */
 	async updateTasksOnStartup() {
-		if (this.plugin.settings.debugging) console.log("Processor: Update tasks in vault and vikunja");
-		if (this.alreadyUpdateTasksOnStartup) throw new Error("Update tasks on startup can only be called once");
-		if (this.plugin.commands.isEverythingSetup()) {
-			if (this.plugin.settings.debugging) console.log("Processor: Found problems in plugin. Have to be fixed first. Syncing is stopped.");
-			return;
-		}
 		if (!this.plugin.settings.updateOnStartup) {
 			if (this.plugin.settings.debugging) console.log("Processor: Update on startup is disabled");
 			return;
 		}
+		if (this.alreadyUpdateTasksOnStartup) throw new Error("Update tasks on startup can only be called once");
+		if (this.plugin.settings.debugging) console.log("Processor: Update tasks in vault and vikunja");
 
-		const localTasks = await this.vaultSearcher.getTasks(this.taskParser);
-		const vikunjaTasks = await this.plugin.tasksApi.getAllTasks();
-
-		const updateStep: IAutomatonSteps = new UpdateTasks(this.app, this.plugin, this);
-		await updateStep.step(localTasks, vikunjaTasks);
-
+		await this.exec();
 		this.alreadyUpdateTasksOnStartup = true;
 	}
 
@@ -218,18 +208,17 @@ class Processor {
 		await this.app.vault.process(file, (data: string) => {
 			const lines = data.split("\n");
 			lines.splice(task.lineno, 1, newTask);
-			const content = lines.join("\n");
-			try {
-				this.plugin.cache.update(task);
-			} catch (e) {
-				if (metadata) {
-					// raise error again, if metadata was wanted! otherwise it is expected, that update will fail.
-					throw e;
-				}
-			}
-			return content;
+			return lines.join("\n");
 		});
 
+		try {
+			this.plugin.cache.update(task);
+		} catch (e) {
+			if (metadata) {
+				// raise error again, if metadata was wanted! otherwise it is expected, that update will fail, because id is missing.
+				throw e;
+			}
+		}
 	}
 
 	getVaultSearcher(): VaultSearcher {

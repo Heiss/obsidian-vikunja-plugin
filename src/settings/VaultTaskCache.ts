@@ -2,51 +2,63 @@ import VikunjaPlugin from "../../main";
 import {App, moment} from "obsidian";
 import {PluginTask} from "../vaultSearcher/vaultSearcher";
 
-
-interface Cache<T> {
-	[key: number]: T;
-}
-
 /*
 * This class is used to cache tasks which are updated in Vault, but not in Vikunja.
 * This should help to identify modifications in vault without Obsidian.
 * Also it makes it possible to update only modified tasks. See issue #9 for more details.
 */
 export default class VaultTaskCache {
+	private static readonly SAVE_TO_DISK_DELAYED_INTERVAL = 250;
 	plugin: VikunjaPlugin;
 	app: App;
 	changesMade: boolean;
 	private cache: Map<number, PluginTask>
+	private saveToDiskDelayedListener: number | undefined;
 
 	constructor(app: App, plugin: VikunjaPlugin) {
 		this.app = app;
 		this.plugin = plugin;
 		this.changesMade = false;
 		this.cache = new Map<number, PluginTask>();
+		this.saveToDiskDelayedListener = undefined;
 	}
 
 	public static fromJson(json: any, app: App, plugin: VikunjaPlugin): VaultTaskCache {
-		const cache = new VaultTaskCache(app, plugin);
+		const taskCache = new VaultTaskCache(app, plugin);
 		console.log("VaultTaskCache: Loading cache from disk", json);
 		const tempCache = Object.entries(json).map((taskJson: any) => {
-			const id = parseInt(taskJson[0]);
 			const task = PluginTask.fromJson(taskJson[1]);
 			if (task === undefined) {
 				return undefined
 			}
+			const id = task.task.id;
+			if (id === undefined) {
+				throw new Error("VaultTaskCache: Task id is not defined");
+			}
 			return [id, task];
 		}).filter((task: any) => task !== undefined);
 		// @ts-ignore
-		cache.cache = new Map<number, PluginTask>(tempCache);
-		console.log("VaultTaskCache: Loaded cache from disk", cache.cache);
-		return cache;
+		taskCache.cache = new Map<number, PluginTask>(tempCache);
+		console.log("VaultTaskCache: Loaded cache from disk", taskCache.cache);
+		return taskCache;
+	}
+
+	/*
+	* This function is used to save the cache to disk, but it waits an interval until it is saved.
+	* It resets the interval everytime, anything calls this method.
+	 */
+	async saveCacheToDiskDelayed() {
+		window.clearInterval(this.saveToDiskDelayedListener);
+		this.saveToDiskDelayedListener = window.setInterval(async () => {
+			await this.saveCacheToDisk();
+		}, VaultTaskCache.SAVE_TO_DISK_DELAYED_INTERVAL);
+		this.plugin.registerInterval(this.saveToDiskDelayedListener);
 	}
 
 	async saveCacheToDisk() {
 		if (this.changesMade) {
 			this.plugin.settings.cache = this.getCachedTasks().map(task => task.toJson());
 			if (this.plugin.settings.debugging) console.log("VaultTaskCache: Updated cache in settings", this.plugin.settings.cache);
-			if (this.plugin.settings.debugging) console.log("VaultTaskCache: Saving cache to disk");
 			await this.plugin.saveSettings();
 		}
 		this.changesMade = false;
@@ -77,8 +89,13 @@ export default class VaultTaskCache {
 		}
 		this.cache.set(local.task.id, local);
 
-		console.log("VaultTaskCache: Updated cache", this.cache);
 		this.changesMade = true;
+
+		if (this.plugin.settings.saveCacheToDiskImmediately) {
+			this.saveCacheToDiskDelayed().then(() => {
+				if (this.plugin.settings.debugging) console.log("VaultTaskCache: Saved cache to disk");
+			});
+		}
 	}
 
 	get(id: number): PluginTask | undefined {

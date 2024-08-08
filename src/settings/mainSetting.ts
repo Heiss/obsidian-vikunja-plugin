@@ -31,6 +31,7 @@ export interface VikunjaPluginSettings {
 	selectedView: number,
 	selectBucketForDoneTasks: number,
 	cache: PluginTask[], // do not touch! Only via settings/VaultTaskCache.ts
+	saveCacheToDiskImmediately: boolean,
 	saveCacheToDiskFrequency: number,
 	updateCompletedStatusImmediately: boolean,
 }
@@ -61,6 +62,7 @@ export const DEFAULT_SETTINGS: VikunjaPluginSettings = {
 	selectedView: 0,
 	selectBucketForDoneTasks: 0,
 	cache: [],
+	saveCacheToDiskImmediately: true,
 	saveCacheToDiskFrequency: 1,
 	updateCompletedStatusImmediately: false,
 }
@@ -75,7 +77,9 @@ export class MainSetting extends PluginSettingTab {
 		super(app, plugin);
 		this.plugin = plugin;
 
-		this.startCacheListener();
+		if (!this.plugin.settings.saveCacheToDiskImmediately) {
+			this.startCacheListener();
+		}
 		this.startCronListener();
 	}
 
@@ -202,25 +206,43 @@ export class MainSetting extends PluginSettingTab {
 		}
 
 		new Setting(containerEl)
-			.setName("Save cache to disk frequency")
-			.setDesc("This plugin uses a cache to calculate correct dates. Set the interval in minutes to save the cache to disk. Lower values will result in more frequent saves, but may cause performance issues. Set too high, task dates are not correctly calculated, because they are missing in cache in next startup. If you make bulk edits of tasks in your vault, you should set higher value. Cache will be only written, if changes were made since last check. If you are unsure, try lowest value and increase it, if you experience performance issues. Limits are 1 to 60 minutes.")
-			.addText(text => text
-				.setValue(this.plugin.settings.saveCacheToDiskFrequency.toString())
-				.onChange(async (value: string) => {
-						const parsedNumber = parseInt(value);
-						if (Number.isNaN(parsedNumber)) {
-							return;
-						}
-						const lowerThanMax = Math.min(parsedNumber, 60);
-						if (this.plugin.settings.debugging) console.log("Save cache to disk frequency - high limits", lowerThanMax);
-						const higherThanMin = Math.max(lowerThanMax, 1);
-						if (this.plugin.settings.debugging) console.log("Save cache to disk frequency - low limits", higherThanMin);
-						this.plugin.settings.saveCacheToDiskFrequency = higherThanMin;
-						await this.plugin.saveSettings();
+			.setName("Update cache to disk immediately")
+			.setDesc("If enabled, the cache will be written to disk immediately after a change. If disabled, the cache will be written to disk after a certain interval. If you experience performance issues, you should disable this and use a frequency.")
+			.addToggle(toggle => toggle
+				.setValue(this.plugin.settings.saveCacheToDiskImmediately)
+				.onChange(async (value: boolean) => {
+					this.plugin.settings.saveCacheToDiskImmediately = value;
+					await this.plugin.saveSettings();
+					if (value) {
+						clearInterval(this.cacheListener);
+					} else {
 						this.startCacheListener();
 					}
+					this.display();
+				}));
+
+		if (!this.plugin.settings.saveCacheToDiskImmediately) {
+			new Setting(containerEl)
+				.setName("Save cache to disk frequency")
+				.setDesc("This plugin uses a cache to calculate correct dates. Set the interval in minutes to save the cache to disk. Lower values will result in more frequent saves, but may cause performance issues. Set too high, task dates are not correctly calculated, because they are missing in cache in next startup. If you make bulk edits of tasks in your vault, you should set higher value. Cache will be only written, if changes were made since last check. If you are unsure, try lowest value and increase it, if you experience performance issues. Limits are 1 to 60 minutes.")
+				.addText(text => text
+					.setValue(this.plugin.settings.saveCacheToDiskFrequency.toString())
+					.onChange(async (value: string) => {
+							const parsedNumber = parseInt(value);
+							if (Number.isNaN(parsedNumber)) {
+								return;
+							}
+							const lowerThanMax = Math.min(parsedNumber, 60);
+							if (this.plugin.settings.debugging) console.log("Save cache to disk frequency - high limits", lowerThanMax);
+							const higherThanMin = Math.max(lowerThanMax, 1);
+							if (this.plugin.settings.debugging) console.log("Save cache to disk frequency - low limits", higherThanMin);
+							this.plugin.settings.saveCacheToDiskFrequency = higherThanMin;
+							await this.plugin.saveSettings();
+							this.startCacheListener();
+						}
+					)
 				)
-			)
+		}
 
 		new Setting(containerEl).setHeading().setName('Vikunja Settings').setDesc('Settings to connect to Vikunja.');
 
