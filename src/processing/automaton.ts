@@ -41,10 +41,10 @@ class Automaton {
 
 		this.steps = [
 			new GetTasks(app, plugin, processor),
-			new SyncLabels(app, plugin),
 			new RemoveTasks(app, plugin),
-			new CreateTasks(app, plugin, processor),
+			new SyncLabels(app, plugin),
 			new UpdateTasks(app, plugin, processor),
+			new CreateTasks(app, plugin, processor),
 		];
 
 		this.status = AutomatonStatus.READY;

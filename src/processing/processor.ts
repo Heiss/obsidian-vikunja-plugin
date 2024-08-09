@@ -107,16 +107,6 @@ class Processor {
 		return `${content} `;
 	}
 
-
-	/*
-	 * Split tasks into two groups:
-	 * - tasksToUpdateInVault: Tasks which have updates in Vikunja
-	 * - tasksToUpdateInVikunja: Tasks which have updates in the vault
-	 *
-	 * tasksToUpdateInVault has already all informations needed for vault update.
-	 *
-	 * This method should only be triggered on startup of obsidian and only once. After this, we cannot guerantee that the updated information of files are in sync.
-	 */
 	async updateTasksOnStartup() {
 		if (!this.plugin.settings.updateOnStartup) {
 			if (this.plugin.settings.debugging) console.log("Processor: Update on startup is disabled");
@@ -236,7 +226,6 @@ class Processor {
 		let vaultSearcher: VaultSearcher;
 		switch (this.plugin.settings.backendToFindTasks) {
 			case backendToFindTasks.Dataview:
-				// Prepare dataview
 				vaultSearcher = new DataviewSearcher(this.app, this.plugin);
 				break;
 			default:
