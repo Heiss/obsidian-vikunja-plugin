@@ -38,33 +38,8 @@ class Tasks implements VikunjaAPI {
 	}
 
 	async getAllTasks(): Promise<ModelsTask[]> {
-		const gen = function* () {
-			let page = 0;
-			while (true) {
-				yield page++;
-			}
-		}
-
-		const arrayRange = (start: number, stop: number, step: number) =>
-			Array.from(
-				{length: (stop - start) / step + 1},
-				(value, index) => start + index * step
-			);
-
-		const tasks: ModelsTask[] = [];
-		let lastResponse: ModelsTask[] = [];
-		const number_gen = gen();
-		do {
-			const current_page = number_gen.next().value;
-			const page_array = arrayRange(current_page * 5, current_page * 5 + 4, 1);
-			if (this.plugin.settings.debugging) console.log("TasksApi: Getting tasks for page", current_page, page_array);
-			const response = await Promise.all(page_array.map(page => this.getTasksForPage(page)));
-			lastResponse = response.flat();
-			if (this.plugin.settings.debugging) console.log("TasksApi: Got tasks from Vikunja", lastResponse);
-			tasks.push(...lastResponse);
-		} while (lastResponse.length > 0);
-
-		return tasks;
+		const params: TasksAllGetRequest = {page: 0};
+		return await this.tasksApi.tasksAllGet(params);
 	}
 
 	async getTasksForPage(page: number): Promise<ModelsTask[]> {

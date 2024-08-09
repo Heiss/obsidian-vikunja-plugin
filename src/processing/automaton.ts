@@ -43,8 +43,8 @@ class Automaton {
 			new GetTasks(app, plugin, processor),
 			new RemoveTasks(app, plugin),
 			new SyncLabels(app, plugin),
-			new UpdateTasks(app, plugin, processor),
 			new CreateTasks(app, plugin, processor),
+			new UpdateTasks(app, plugin, processor),
 		];
 
 		this.status = AutomatonStatus.READY;

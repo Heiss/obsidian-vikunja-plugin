@@ -78,6 +78,7 @@ class Processor {
 		if (file === null) {
 			return;
 		}
+		if (this.plugin.settings.debugging) console.log("Processor: Save to vault", task, newTask);
 		await this.app.vault.process(file, data => {
 			let content;
 			if (this.plugin.settings.appendMode) {
@@ -92,9 +93,9 @@ class Processor {
 				}
 				content = lines.join("\n");
 			}
-			this.plugin.cache.update(task);
 			return content;
 		});
+		this.plugin.cache.update(task);
 	}
 
 	getTaskContent(task: PluginTask): string {
