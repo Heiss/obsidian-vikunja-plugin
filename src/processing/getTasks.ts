@@ -36,35 +36,7 @@ class GetTasks implements IAutomatonSteps {
 		return {localTasks, vikunjaTasks};
 	}
 
-	/*
-	* This function is used to wait for the dataview index to be ready.
-	* Because dataview only indexing, if something changed, but sync does not know if anything changed recently,
-	* we need to trigger it manually.
-	 */
-	private async handleDataviewIndex() {
-		const currentFile = this.app.workspace.getActiveFile();
-		if (!currentFile) {
-			throw new Error("No active file");
-		}
-		let dataViewIndexReady = false;
-		// @ts-ignore
-		this.plugin.registerEvent(this.plugin.app.metadataCache.on("dataview:metadata-change", () => {
-			dataViewIndexReady = true;
-		}));
-
-		do {
-			if (this.plugin.settings.debugging) console.log("Step GetTask: Waiting for dataview index to be ready");
-			await new Promise(resolve => setTimeout(resolve, 1000));
-			this.app.metadataCache.trigger("resolve", currentFile);
-		} while (!dataViewIndexReady)
-
-	}
-
 	private async getTasksFromVault(): Promise<PluginTask[]> {
-		if (this.plugin.settings.backendToFindTasks === backendToFindTasks.Dataview) {
-			await this.handleDataviewIndex();
-		}
-
 		if (this.plugin.settings.debugging) console.log("Step GetTask: Pulling tasks from vault");
 		return await this.vaultSearcher.getTasks(this.taskParser);
 	}

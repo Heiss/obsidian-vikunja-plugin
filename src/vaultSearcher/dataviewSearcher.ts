@@ -34,10 +34,38 @@ export class DataviewSearcher implements VaultSearcher {
 	}
 
 	async getTasks(parser: TaskParser): Promise<PluginTask[]> {
+		await this.handleDataviewIndex();
+
 		const dv = this.dataviewPlugin;
 		const tasks = dv.pages().file.tasks;
 
 		return await this.parseTasks(tasks, parser);
+	}
+
+	/*
+	* This function is used to wait for the dataview index to be ready.
+	* Because dataview only indexing, if something changed, but sync does not know if anything changed recently,
+	* we need to trigger it manually.
+	 */
+	private async handleDataviewIndex() {
+		const currentFile = this.app.workspace.getActiveFile();
+		if (!currentFile) {
+			throw new Error("No active file");
+		}
+
+		let dataViewIndexReady = false;
+		// @ts-ignore
+		this.plugin.registerEvent(this.plugin.app.metadataCache.on("dataview:metadata-change", () => {
+			dataViewIndexReady = true;
+		}));
+
+		// Trigger reindexing of DataView for the current file
+		this.app.metadataCache.trigger("resolve", currentFile);
+
+		while (!dataViewIndexReady) {
+			if (this.plugin.settings.debugging) console.log("Step GetTask: Waiting for dataview index to be ready");
+			await new Promise(resolve => setTimeout(resolve, 500));
+		}
 	}
 
 	private async parseTasks(tasks: DataArray, parser: TaskParser) {
