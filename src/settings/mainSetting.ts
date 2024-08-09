@@ -20,7 +20,6 @@ export interface VikunjaPluginSettings {
 	backendToFindTasks: backendToFindTasks,
 	debugging: boolean,
 	removeLabelsIfInVaultNotUsed: boolean,
-	removeTasksIfInVaultNotFound: boolean,
 	removeTasksOnlyInDefaultProject: boolean,
 	enableCron: boolean,
 	cronInterval: number,
@@ -51,7 +50,6 @@ export const DEFAULT_SETTINGS: VikunjaPluginSettings = {
 	backendToFindTasks: backendToFindTasks.Dataview,
 	debugging: false,
 	removeLabelsIfInVaultNotUsed: false,
-	removeTasksIfInVaultNotFound: false,
 	removeTasksOnlyInDefaultProject: true,
 	enableCron: false,
 	cronInterval: 500,
@@ -546,29 +544,15 @@ export class MainSetting extends PluginSettingTab {
 					}));
 
 		new Setting(containerEl)
-			.setName("Remove tasks if not found in vault")
-			.setDesc("If IDs not found in the vault, they will be deleted in Vikunja. Mostly, because you delete them. Very helpful, if you only create tasks through Obsidian.")
+			.setName("Remove tasks only in default project")
+			.setDesc("If enabled, only tasks in the default project will be removed when ID not found in Vault. Otherwise, all tasks will be removed nevertheless the configured project.")
 			.addToggle(toggle =>
 				toggle
-					.setValue(this.plugin.settings.removeTasksIfInVaultNotFound)
+					.setValue(this.plugin.settings.removeTasksOnlyInDefaultProject)
 					.onChange(async (value: boolean) => {
-						this.plugin.settings.removeTasksIfInVaultNotFound = value;
+						this.plugin.settings.removeTasksOnlyInDefaultProject = value;
 						await this.plugin.saveSettings();
-						this.display();
 					}));
-
-		if (this.plugin.settings.removeTasksIfInVaultNotFound) {
-			new Setting(containerEl)
-				.setName("Remove tasks only in default project")
-				.setDesc("If enabled, only tasks in the default project will be removed when ID not found in Vault. Otherwise, all tasks will be removed nevertheless the configured project.")
-				.addToggle(toggle =>
-					toggle
-						.setValue(this.plugin.settings.removeTasksOnlyInDefaultProject)
-						.onChange(async (value: boolean) => {
-							this.plugin.settings.removeTasksOnlyInDefaultProject = value;
-							await this.plugin.saveSettings();
-						}));
-		}
 
 		if (this.projects.length === 0) {
 			new Setting(containerEl)

@@ -216,6 +216,22 @@ class Processor {
 		}
 	}
 
+	async removeFromVault(task: PluginTask) {
+		const file = this.app.vault.getFileByPath(task.filepath);
+		if (file === null) {
+			return;
+		}
+		await this.app.vault.process(file, (data: string) => {
+			const lines = data.split("\n");
+			lines.splice(task.lineno, 1);
+			return lines.join("\n");
+		});
+		if (task.task.id === undefined) {
+			throw new Error("Task id is not defined");
+		}
+		this.plugin.cache.delete(task.task.id);
+	}
+
 	getVaultSearcher(): VaultSearcher {
 		let vaultSearcher: VaultSearcher;
 		switch (this.plugin.settings.backendToFindTasks) {
