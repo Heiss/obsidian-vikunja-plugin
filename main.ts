@@ -115,6 +115,14 @@ export default class VikunjaPlugin extends Plugin {
 				await this.commands.resetTasksInVikunja();
 			}
 		})
+		this.addCommand({
+			id: "vikunja-reset-cache",
+			name: "Reset cache and reindex tasks",
+			callback: async () => {
+				await this.cache.reindex();
+			}
+
+		})
 	}
 
 	private async handleEditorChange(data: any) {

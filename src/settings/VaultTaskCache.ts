@@ -64,6 +64,20 @@ export default class VaultTaskCache {
 		this.changesMade = false;
 	}
 
+	async reindex() {
+		const cache = new Map<number, PluginTask>();
+		const tasks = await this.plugin.processor.getVaultSearcher().getTasks(this.plugin.processor.getTaskParser());
+		tasks.map(task => {
+			if (task.task.id === undefined) {
+				throw new Error("VaultTaskCache: Task id is not defined");
+			}
+			cache.set(task.task.id, task);
+		})
+		this.cache = cache;
+		this.changesMade = true;
+		await this.saveCacheToDisk();
+	}
+
 	updateFileInfos(id: number, filepath: string, lineno: number) {
 		const cachedTask = this.get(id);
 		if (cachedTask === undefined) {
