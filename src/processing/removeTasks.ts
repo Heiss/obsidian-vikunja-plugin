@@ -14,6 +14,10 @@ class RemoveTasks implements IAutomatonSteps {
 	}
 
 	async step(localTasks: PluginTask[], vikunjaTasksBeforeDeletion: ModelsTask[]): Promise<StepsOutput> {
+		if (!this.plugin.settings.removeTasks) {
+			return {localTasks, vikunjaTasks: vikunjaTasksBeforeDeletion};
+		}
+
 		const vikunjaTasks = await this.removeTasksInVikunja(localTasks, vikunjaTasksBeforeDeletion);
 		//const localTasks = await this.removeTasksInVault(localTasksBeforeDeletion, vikunjaTasksBeforeDeletion);
 		return {localTasks, vikunjaTasks};

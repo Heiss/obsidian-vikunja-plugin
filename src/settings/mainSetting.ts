@@ -20,6 +20,7 @@ export interface VikunjaPluginSettings {
 	backendToFindTasks: backendToFindTasks,
 	debugging: boolean,
 	removeLabelsIfInVaultNotUsed: boolean,
+	removeTasks: boolean,
 	removeTasksOnlyInDefaultProject: boolean,
 	enableCron: boolean,
 	cronInterval: number,
@@ -50,6 +51,7 @@ export const DEFAULT_SETTINGS: VikunjaPluginSettings = {
 	backendToFindTasks: backendToFindTasks.Dataview,
 	debugging: false,
 	removeLabelsIfInVaultNotUsed: false,
+	removeTasks: false,
 	removeTasksOnlyInDefaultProject: true,
 	enableCron: false,
 	cronInterval: 500,
@@ -544,15 +546,30 @@ export class MainSetting extends PluginSettingTab {
 					}));
 
 		new Setting(containerEl)
-			.setName("Remove tasks only in default project")
-			.setDesc("If enabled, only tasks in the default project will be removed when ID not found in Vault. Otherwise, all tasks will be removed nevertheless the configured project.")
+			.setName("Remove tasks if not found in vault")
+			.setDesc("If tasks not found in the vault, they will be deleted in Vikunja. Mostly, because you delete them. Very helpful, if you only create tasks through Obsidian.")
 			.addToggle(toggle =>
 				toggle
-					.setValue(this.plugin.settings.removeTasksOnlyInDefaultProject)
+					.setValue(this.plugin.settings.removeTasks)
 					.onChange(async (value: boolean) => {
-						this.plugin.settings.removeTasksOnlyInDefaultProject = value;
+						this.plugin.settings.removeTasks = value;
 						await this.plugin.saveSettings();
+						this.display();
 					}));
+
+		if (this.plugin.settings.removeTasks) {
+
+			new Setting(containerEl)
+				.setName("Remove tasks only in default project")
+				.setDesc("If enabled, only tasks in the default project will be removed when ID not found in Vault. Otherwise, all tasks will be removed nevertheless the configured project.")
+				.addToggle(toggle =>
+					toggle
+						.setValue(this.plugin.settings.removeTasksOnlyInDefaultProject)
+						.onChange(async (value: boolean) => {
+							this.plugin.settings.removeTasksOnlyInDefaultProject = value;
+							await this.plugin.saveSettings();
+						}));
+		}
 
 		if (this.projects.length === 0) {
 			new Setting(containerEl)
