@@ -1,4 +1,4 @@
-import {App, moment, TFile} from "obsidian";
+import {App, moment, Notice, TFile} from "obsidian";
 import VikunjaPlugin from "../../main";
 import {DataArray, DataviewApi, getAPI} from "obsidian-dataview";
 import {PluginTask, VaultSearcher} from "./vaultSearcher";
@@ -48,9 +48,21 @@ export class DataviewSearcher implements VaultSearcher {
 	* we need to trigger it manually.
 	 */
 	private async handleDataviewIndex() {
-		const currentFile = this.app.workspace.getActiveFile();
+		let currentFile;
+		// this fixes an issue where the last open file is not set and dataview cannot be triggered to reindex. This is only a workaround to make the plugin more stable.
+		const fns = [() => this.app.workspace.getActiveFile(), () => this.app.vault.getFileByPath(this.app.workspace.getLastOpenFiles()[0]), () => this.app.vault.getMarkdownFiles()[0]];
+		while (!currentFile && fns.length > 0) {
+			const fn = fns.pop();
+			if (fn) {
+				currentFile = fn();
+
+			}
+			console.log("currentFile", currentFile);
+		}
+
 		if (!currentFile) {
-			throw new Error("No active file");
+			new Notice("Vikunja Plugin: Could not find any files in the vault! Please create a file first.");
+			throw new Error("Vikunja Plugin: Could not find any files in the vault! Please create a file first.");
 		}
 
 		let dataViewIndexReady = false;
