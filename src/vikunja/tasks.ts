@@ -55,13 +55,13 @@ class Tasks implements VikunjaAPI {
 			throw new Error("TasksApi: Task id is not defined");
 		}
 		if (this.plugin.settings.debugging) console.log("TasksApi: Updating task", task.task.id, task);
-		if (task.task.done) {
-			task.task.bucketId = this.plugin.settings.selectBucketForDoneTasks;
-		}
 		task = this.generateDescriptionLink(task);
 
 		await this.addLabelToTask(task.task);
-		const param: TasksIdPostRequest = {id: id, task: task.task};
+		const param: TasksIdPostRequest = {
+			id: id,
+			task: this.getCleanedModelTask(task.task)
+		};
 		const vikunjaTask = await this.tasksApi.tasksIdPost(param);
 		task.task = vikunjaTask;
 		this.plugin.cache.update(task);
@@ -72,12 +72,6 @@ class Tasks implements VikunjaAPI {
 		if (this.plugin.settings.debugging) console.log("TasksApi: Creating task", task);
 		const id = task.task.projectId;
 		if (id === undefined) throw new Error("TasksApi: Project id is not defined");
-
-		// TODO add link to vault file in Vikunja task
-		//  let url = encodeURI(`obsidian://open?vault=${this.app.vault.getName()}&file=${filepath}`)
-		//  description =`[${filepath}](${url})`;
-		//  filepath could be an issue, because this information is dropped right before calling this method right now
-		//  Another problem is, that it cannot track moved tasks in the vault
 
 		if (task.task.done) {
 			task.task.bucketId = this.plugin.settings.selectBucketForDoneTasks;
@@ -189,6 +183,21 @@ class Tasks implements VikunjaAPI {
 		}
 		newTask.task.description += restLines;
 		return newTask
+	}
+
+	private getCleanedModelTask(task: ModelsTask): ModelsTask {
+		// This needs to be updated, when we have more fields managed in obsidian!
+		let bucketId = undefined;
+		if (task.done) {
+			bucketId = this.plugin.settings.selectBucketForDoneTasks;
+		}
+		return {
+			projectId: task.projectId,
+			title: task.title,
+			description: task.description,
+			done: task.done,
+			bucketId: bucketId,
+		};
 	}
 }
 
