@@ -121,7 +121,13 @@ export default class VikunjaPlugin extends Plugin {
 			callback: async () => {
 				await this.cache.reindex();
 			}
-
+		})
+		this.addCommand({
+			id: "vikunja-dedup-labels",
+			name: "Deduplicate labels in Vikunja",
+			callback: async () => {
+				await this.commands.deduplicateLabels();
+			}
 		})
 	}
 

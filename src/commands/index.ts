@@ -152,4 +152,33 @@ export default class Commands {
 			}
 		).open();
 	}
+
+	async deduplicateLabels() {
+		new Notice("Deduplicating labels in Vikunja starting");
+
+		const [labels, tasks] = await Promise.all([this.plugin.labelsApi.loadLabels(), this.plugin.tasksApi.getAllTasks()]);
+		const dedupLabels = labels.filter((label, index, self) => self.findIndex(l => l.title === label.title) === index);
+		const updatedTasks = tasks.map(task => {
+			if (!task.labels) return task;
+			// @ts-ignore
+			task.labels = task.labels.map(label => dedupLabels.find(l => l.title === label.title)).filter(l => l !== undefined);
+			return task;
+		});
+		await Promise.all(updatedTasks.map(async task => {
+			if (!task.id) return;
+			const cachedTask = this.plugin.cache.get(task.id);
+			if (!cachedTask) return;
+			cachedTask.task = task;
+			cachedTask.task = await this.plugin.tasksApi.updateTask(cachedTask);
+			this.plugin.cache.update(cachedTask);
+		}));
+
+		// this ensures that we are deleting labels, that are not used in tasks.
+		const allUsedLabels = updatedTasks.flatMap(task => task.labels ?? []);
+		const labelsToDelete = labels.filter(label => !allUsedLabels.find(l => l.id === label.id));
+
+		await this.plugin.labelsApi.deleteLabels(labelsToDelete);
+
+		new Notice("Deduplicating labels in Vikunja done");
+	}
 }
