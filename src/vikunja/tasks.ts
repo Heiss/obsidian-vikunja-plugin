@@ -50,25 +50,28 @@ class Tasks implements VikunjaAPI {
 	}
 
 	async updateTask(task: PluginTask): Promise<ModelsTask> {
-		if (!task.task.id) {
+		const id = task.task.id;
+		if (id === undefined) {
 			throw new Error("TasksApi: Task id is not defined");
 		}
 		if (this.plugin.settings.debugging) console.log("TasksApi: Updating task", task.task.id, task);
 		if (task.task.done) {
 			task.task.bucketId = this.plugin.settings.selectBucketForDoneTasks;
 		}
+		task = this.generateDescriptionLink(task);
 
 		await this.addLabelToTask(task.task);
-		const param: TasksIdPostRequest = {id: task.task.id, task: task.task};
+		const param: TasksIdPostRequest = {id: id, task: task.task};
 		const vikunjaTask = await this.tasksApi.tasksIdPost(param);
 		task.task = vikunjaTask;
 		this.plugin.cache.update(task);
 		return vikunjaTask;
 	}
 
-	async createTask(task: ModelsTask): Promise<ModelsTask> {
+	async createTask(task: PluginTask): Promise<ModelsTask> {
 		if (this.plugin.settings.debugging) console.log("TasksApi: Creating task", task);
-		if (!task.projectId) throw new Error("TasksApi: Task projectId is not defined");
+		const id = task.task.projectId;
+		if (id === undefined) throw new Error("TasksApi: Project id is not defined");
 
 		// TODO add link to vault file in Vikunja task
 		//  let url = encodeURI(`obsidian://open?vault=${this.app.vault.getName()}&file=${filepath}`)
@@ -76,22 +79,19 @@ class Tasks implements VikunjaAPI {
 		//  filepath could be an issue, because this information is dropped right before calling this method right now
 		//  Another problem is, that it cannot track moved tasks in the vault
 
-		if (task.done) {
-			task.bucketId = this.plugin.settings.selectBucketForDoneTasks;
+		if (task.task.done) {
+			task.task.bucketId = this.plugin.settings.selectBucketForDoneTasks;
 		}
+		task = this.generateDescriptionLink(task);
 
 		const param: ProjectsIdTasksPutRequest = {
-			id: task.projectId,
-			task: task
+			id: id,
+			task: task.task
 		};
 		const createdTask = await this.tasksApi.projectsIdTasksPut(param);
-		createdTask.labels = task.labels;
+		createdTask.labels = task.task.labels;
 		await this.addLabelToTask(createdTask);
 		return createdTask;
-	}
-
-	async createTasks(tasks: ModelsTask[]): Promise<ModelsTask[]> {
-		return Promise.all(tasks.map(task => this.createTask(task)));
 	}
 
 	async deleteTask(task: ModelsTask) {
@@ -172,6 +172,23 @@ class Tasks implements VikunjaAPI {
 
 		task.task.projectId = projectId;
 		await this.updateTask(task);
+	}
+
+	private generateDescriptionLink(task: PluginTask): PluginTask {
+		if (!this.plugin.settings.addLinkToFileInDescription) return task;
+
+		const newTask = task;
+		let description = task.task.description;
+		const firstLine = description?.split("\n")[0];
+		const restLines = description?.split("\n").slice(1).join("\n");
+		const regexForObsidainLinkInLine = /"obsidian:\/\/open\?file=(.*)">/;
+		newTask.task.description = `<p><a target="_blank" rel="noopener noreferrer nofollow" href="obsidian://open?file=${task.filepath}">Link to Obsidian</a></p>`;
+
+		if (firstLine !== undefined && !regexForObsidainLinkInLine.test(firstLine)) {
+			newTask.task.description += firstLine;
+		}
+		newTask.task.description += restLines;
+		return newTask
 	}
 }
 

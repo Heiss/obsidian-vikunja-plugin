@@ -34,6 +34,7 @@ export interface VikunjaPluginSettings {
 	saveCacheToDiskImmediately: boolean,
 	saveCacheToDiskFrequency: number,
 	updateCompletedStatusImmediately: boolean,
+	addLinkToFileInDescription: boolean,
 }
 
 export const DEFAULT_SETTINGS: VikunjaPluginSettings = {
@@ -65,6 +66,7 @@ export const DEFAULT_SETTINGS: VikunjaPluginSettings = {
 	saveCacheToDiskImmediately: true,
 	saveCacheToDiskFrequency: 1,
 	updateCompletedStatusImmediately: false,
+	addLinkToFileInDescription: false,
 }
 
 export class MainSetting extends PluginSettingTab {
@@ -506,6 +508,25 @@ export class MainSetting extends PluginSettingTab {
 			.setHeading()
 			.setName('Push: Obsidian -> Vikunja')
 			.setDesc('');
+
+		const linkDesc = document.createDocumentFragment();
+		linkDesc.append("Add a link to the file in the task description. This will help you to find the file, where the task is created. Beware: This is currently not supported by Vikunja, but it is implemented already. Follow ",
+			linkDesc.createEl("a", {
+				href: "https://github.com/go-vikunja/vikunja/issues/306",
+				text: "github issue",
+			}), " for more information.");
+
+		new Setting(containerEl)
+			.setName("Add link to file in description")
+			.setDesc(linkDesc)
+			.addToggle(toggle => {
+				return toggle
+					.setValue(this.plugin.settings.addLinkToFileInDescription)
+					.onChange(async (value: boolean) => {
+						this.plugin.settings.addLinkToFileInDescription = value;
+						await this.plugin.saveSettings();
+					});
+			});
 
 		new Setting(containerEl)
 			.setName("Use tags in text")
