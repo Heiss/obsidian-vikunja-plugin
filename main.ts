@@ -126,10 +126,6 @@ export default class VikunjaPlugin extends Plugin {
 	}
 
 	private async handleEditorChange(data: any) {
-		if (!this.settings.updateOnCursorMovement) {
-			return;
-		}
-
 		if (this.settings.debugging) console.log("Editor changed", data);
 		const currentFile = this.app.workspace.getActiveFile();
 		if (!currentFile) {
