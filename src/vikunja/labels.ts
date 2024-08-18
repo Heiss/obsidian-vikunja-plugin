@@ -2,6 +2,7 @@ import {App} from "obsidian";
 import VikunjaPlugin from "../../main";
 import {
 	Configuration,
+	FetchError,
 	LabelsApi,
 	LabelsIdDeleteRequest,
 	LabelsIdPutRequest,
@@ -23,7 +24,7 @@ class Label implements VikunjaAPI {
 	checkPermissions(): boolean {
 		// TODO: Implement this method
 		return true;
-    }
+	}
 
 	init() {
 		const configuration = new Configuration({
@@ -32,6 +33,7 @@ class Label implements VikunjaAPI {
 		});
 		this.labelsApi = new LabelsApi(configuration);
 		this.labelsMap = new Map<string, ModelsLabel>();
+
 		this.loadLabels().then();
 	}
 
@@ -129,8 +131,10 @@ class Label implements VikunjaAPI {
 		} catch (e) {
 			// There is a bug in Vikunja API that returns null instead of an empty array
 			if (e instanceof TypeError) console.info("LabelsAPI: No labels there");
-			else
+			else if (e instanceof FetchError) {
+			} else {
 				console.error("LabelsAPI: Could not get labels", e);
+			}
 		}
 		allLabels.forEach(label => {
 			if (label.title === undefined) throw new Error("Label title is not defined");
