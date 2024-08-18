@@ -141,15 +141,15 @@ export default class VikunjaPlugin extends Plugin {
 
 		const tasks = await this.processor.getVaultSearcher().getTasksFromFile(this.processor.getTaskParser(), currentFile);
 		for (const task of tasks) {
-			if (task.task.id) {
-				const cachedTask = this.cache.get(task.task.id);
-				if (cachedTask === undefined || !cachedTask.isTaskEqual(task.task)) {
-					this.cache.update(task);
-				} else {
-					if (cachedTask.lineno !== task.lineno || cachedTask.filepath !== task.filepath) {
-						this.cache.updateFileInfos(task.task.id, task.filepath, task.lineno);
-					}
-				}
+			if (task.task.id === undefined) {
+				continue;
+			}
+
+			const cachedTask = this.cache.get(task.task.id);
+			if (cachedTask === undefined || !cachedTask.isTaskEqual(task.task)) {
+				this.cache.update(task);
+			} else if (cachedTask.lineno !== task.lineno || cachedTask.filepath !== task.filepath) {
+				this.cache.updateFileInfos(task.task.id, task.filepath, task.lineno);
 			}
 		}
 		// FIXME the update line stuff should be communicated in settings

@@ -129,24 +129,15 @@ class Processor {
 			return;
 		}
 
-		const view = this.app.workspace.getActiveViewOfType(MarkdownView)
+		const view = this.app.workspace.getActiveViewOfType(MarkdownView);
 		if (!view) {
 			if (this.plugin.settings.debugging) console.log("Processor: No markdown view found");
 			return;
 		}
 
-		const cursor = view.app.workspace.getActiveViewOfType(MarkdownView)?.editor.getCursor()
-
-		const currentFilename = view.app.workspace.getActiveViewOfType(MarkdownView)?.app.workspace.activeEditor?.file?.name;
-		if (!currentFilename) {
-
-			if (this.plugin.settings.debugging) console.log("Processor: No filename found");
-			return;
-		}
-
-		const currentLine = cursor?.line
-		if (!currentLine) {
-			if (this.plugin.settings.debugging) console.log("Processor: No line found");
+		const cursor = view.editor.getCursor();
+		if (!cursor) {
+			if (this.plugin.settings.debugging) console.log("Processor: No cursor found");
 			return;
 		}
 
@@ -156,26 +147,29 @@ class Processor {
 			return;
 		}
 
+		const currentFilename = file.name;
+
 		const lastLine = this.lastLineChecked.get(currentFilename);
-		let updatedTask = undefined;
-		if (!!lastLine) {
+		let updatedTask: PluginTask | undefined = undefined;
+		if (lastLine !== undefined) {
 			const lastLineText = view.editor.getLine(lastLine);
 			if (this.plugin.settings.debugging) console.log("Processor: Last line,", lastLine, "Last line text", lastLineText);
 			try {
 				const parsedTask = await this.taskParser.parse(lastLineText);
 				updatedTask = new PluginTask(file.path, lastLine, parsedTask);
-				if (updatedTask.task.id === undefined) {
-					return;
+
+				if (updatedTask.task.id === undefined && this.plugin.settings.createTaskOnCursorMovement) {
+					await this.createTaskAndUpdateToVault(updatedTask);
 				}
-				const cacheTask = this.plugin.cache.get(updatedTask.task.id);
-				if (cacheTask === undefined) {
-					if (this.plugin.settings.debugging) console.error("Processor: Should not be here, because if this task is not in cache, but has an id, it circumvented the cache.")
-					return;
-				}
-				await this.plugin.tasksApi.updateTask(updatedTask);
 			} catch (e) {
-				if (this.plugin.settings.debugging) console.log("Processor: Error while parsing task", e);
+				if (this.plugin.settings.debugging) console.log("Processor: Error while parsing task, mostly because there is no task", e);
 			}
+		}
+
+		const currentLine = cursor.line
+		if (!currentLine) {
+			if (this.plugin.settings.debugging) console.log("Processor: No line found");
+			return;
 		}
 
 		this.lastLineChecked.set(currentFilename, currentLine);
@@ -186,6 +180,7 @@ class Processor {
 	* If the second parameter set to false, the vikunja metadata will not entered. But per default, the metadata will be entered.
 	*/
 	async updateToVault(task: PluginTask, metadata: boolean = true) {
+		if (this.plugin.settings.debugging) console.log("Processor: Update task in vault", task, "metadata", metadata);
 		const newTask = (metadata) ? this.getTaskContent(task) : this.getTaskContentWithoutVikunja(task);
 		const file = this.app.vault.getFileByPath(task.filepath);
 		if (file === null) {

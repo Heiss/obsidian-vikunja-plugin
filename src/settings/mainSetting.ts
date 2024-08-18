@@ -26,6 +26,7 @@ export interface VikunjaPluginSettings {
 	cronInterval: number,
 	updateOnStartup: boolean,
 	updateOnCursorMovement: boolean,
+	createTaskOnCursorMovement: boolean,
 	pullTasksOnlyFromDefaultProject: boolean,
 	availableViews: ModelsProjectView[],
 	selectedView: number,
@@ -58,6 +59,7 @@ export const DEFAULT_SETTINGS: VikunjaPluginSettings = {
 	cronInterval: 500,
 	updateOnStartup: false,
 	updateOnCursorMovement: false,
+	createTaskOnCursorMovement: false,
 	pullTasksOnlyFromDefaultProject: false,
 	availableViews: [],
 	selectedView: 0,
@@ -610,7 +612,22 @@ export class MainSetting extends PluginSettingTab {
 					.onChange(async (value: boolean) => {
 						this.plugin.settings.updateOnCursorMovement = value;
 						await this.plugin.saveSettings();
+						this.display();
 					}));
+
+		if (this.plugin.settings.updateOnCursorMovement) {
+			new Setting(containerEl)
+				.setName("Create task on cursor movement")
+				.setDesc("This will create a task in Vikunja, if you move the cursor and the found task on last line was not synced to Vikunja. Useful, if you want to create a task quickly and do not want to sync manually.")
+				.addToggle(toggle =>
+					toggle
+						.setValue(this.plugin.settings.createTaskOnCursorMovement)
+						.onChange(async (value: boolean) => {
+								this.plugin.settings.createTaskOnCursorMovement = value;
+								await this.plugin.saveSettings();
+							}
+						));
+		}
 
 		new Setting(containerEl)
 			.setName("Update completed status immediately")
