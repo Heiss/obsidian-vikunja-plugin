@@ -4,6 +4,7 @@ import {DataArray, DataviewApi, getAPI} from "obsidian-dataview";
 import {PluginTask, VaultSearcher} from "./vaultSearcher";
 import {TaskParser} from "src/taskFormats/taskFormats";
 
+const MAX_TIMEOUT_FOR_DATACACHE = 30;
 
 export class DataviewSearcher implements VaultSearcher {
 	app: App;
@@ -17,6 +18,8 @@ export class DataviewSearcher implements VaultSearcher {
 	}
 
 	async getTasksFromFile(parser: TaskParser, file: TFile): Promise<PluginTask[]> {
+		await this.handleDataviewIndex();
+
 		const dv = this.dataviewPlugin;
 		let tasks = undefined;
 
@@ -48,16 +51,15 @@ export class DataviewSearcher implements VaultSearcher {
 	* we need to trigger it manually.
 	 */
 	private async handleDataviewIndex() {
-		let currentFile;
+		let currentFile = undefined;
 		// this fixes an issue where the last open file is not set and dataview cannot be triggered to reindex. This is only a workaround to make the plugin more stable.
 		const fns = [() => this.app.workspace.getActiveFile(), () => this.app.vault.getFileByPath(this.app.workspace.getLastOpenFiles()[0]), () => this.app.vault.getMarkdownFiles()[0]];
-		while (!currentFile && fns.length > 0) {
-			const fn = fns.pop();
+		while (currentFile === undefined && fns.length > 0) {
+			const fn = fns.shift();
 			if (fn) {
 				currentFile = fn();
-
 			}
-			console.log("currentFile", currentFile);
+			if (this.plugin.settings.debugging) console.log("Step GetTask: using file for indexing", currentFile, "fn", fn);
 		}
 
 		if (!currentFile) {
@@ -65,19 +67,28 @@ export class DataviewSearcher implements VaultSearcher {
 			throw new Error("Vikunja Plugin: Could not find any files in the vault! Please create a file first.");
 		}
 
-		let dataViewIndexReady = false;
+		// This is to count the event, so we can be sure to get the latest state from dataview
+		let counter = 2;
 		// @ts-ignore
-		this.plugin.registerEvent(this.plugin.app.metadataCache.on("dataview:metadata-change", () => {
-			dataViewIndexReady = true;
-		}));
+		this.plugin.registerEvent(this.plugin.app.metadataCache.on("dataview:metadata-change", (type, file, oldPath?) => {
+			if (this.plugin.settings.debugging) console.log("Step GetTask: Dataview metadata change", type, file, oldPath);
+			counter--;
+		}, this));
 
-		// Trigger reindexing of DataView for the current file
+		// Trigger reindexing of DataView for the current file https://github.com/blacksmithgu/obsidian-dataview/blob/3c29f7cb5bb76f62b5342b88050e054a7272667f/src/data-index/index.ts#L97
+		this.app.metadataCache.trigger("resolve", currentFile);
+		// This is a fix, because if we came here via sync, obsidian does not trigger a resolve event, so we do it on our own a second time. ugly as hell!
 		this.app.metadataCache.trigger("resolve", currentFile);
 
-		while (!dataViewIndexReady) {
-			if (this.plugin.settings.debugging) console.log("Step GetTask: Waiting for dataview index to be ready");
+		// Because it is possible, that obsidian does not trigger the event a second time, we need a backup, so we go further after some time.
+		let timeout = 0;
+		while (counter > 0 && timeout < MAX_TIMEOUT_FOR_DATACACHE) {
+			if (this.plugin.settings.debugging) console.log("Step GetTask: Waiting for dataview index to be ready", "counter for events", counter, "timeout counter as backup", timeout);
 			await new Promise(resolve => setTimeout(resolve, 500));
+			timeout++;
 		}
+
+		if (this.plugin.settings.debugging) console.log("Step GetTask: Dataview index is ready");
 	}
 
 	private async parseTasks(tasks: DataArray, parser: TaskParser) {
