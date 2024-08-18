@@ -40,7 +40,6 @@ class Automaton {
 		this.processor = processor;
 
 		this.steps = [
-			new GetTasks(app, plugin, processor),
 			new RemoveTasks(app, plugin),
 			new SyncLabels(app, plugin),
 			new CreateTasks(app, plugin, processor),
@@ -50,10 +49,20 @@ class Automaton {
 		this.status = AutomatonStatus.READY;
 	}
 
-	async run() {
+	/*
+	* Run the automaton with the given tasks. If no tasks are given, the automaton will fetch the tasks from Vikunja.
+	*/
+	async run(tasks: StepsOutput | undefined = undefined) {
 		let localTasks: PluginTask[] = [];
 		let vikunjaTasks: ModelsTask[] = [];
 		this.status = AutomatonStatus.RUNNING;
+
+		if (tasks === undefined) {
+			this.steps.unshift(new GetTasks(this.app, this.plugin, this.processor));
+		} else {
+			localTasks = tasks.localTasks;
+			vikunjaTasks = tasks.vikunjaTasks;
+		}
 
 		while (this.currentStep < this.steps.length) {
 			let output: StepsOutput;
