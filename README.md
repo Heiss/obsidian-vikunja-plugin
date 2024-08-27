@@ -1,6 +1,6 @@
 # Obsidian Vikunja Plugin
 
-**Currently status**: Known issues with sync changes from vikunja
+**Currently status**: Known issues with sync changes from vikunja documented in [#13](https://github.com/Heiss/obsidian-vikunja-plugin/issues/13)
 
 This **unofficial** plugin connects Obsidian and [Vikunja](https://vikunja.io). Vikunja is a todo-App and task manager
 that helps you to organize your life. It can be used as a self-host replacement for [todoist.com](todoist.com/).
