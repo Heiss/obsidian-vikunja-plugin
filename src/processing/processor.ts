@@ -24,6 +24,11 @@ class Processor {
 	private alreadyUpdateTasksOnStartup = false;
 	private lastLineChecked: Map<string, number>;
 	private automaton: Automaton;
+	private syncing = false;
+
+	public isSyncing(): boolean {
+		return this.syncing;
+	}
 
 	constructor(app: App, plugin: Plugin) {
 		this.app = app;
@@ -40,11 +45,17 @@ class Processor {
 	* The main method to sync tasks between Vikunja and Obsidian.
 	 */
 	async exec() {
+		if (this.syncing) {
+			if (this.plugin.settings.debugging) console.log("Processor: Already syncing, skip");
+			return;
+		}
+		this.syncing = true;
 		if (this.plugin.settings.debugging) console.log("Processor: Start processing");
 
 		if (this.plugin.commands.isEverythingSetup()) {
 			new Notice("Vikunja Plugin: Found problems in plugin. Have to be fixed first. Syncing is stopped.");
 			if (this.plugin.settings.debugging) console.log("Processor: Found problems in plugin. Have to be fixed first.");
+			this.syncing = false;
 			return;
 		}
 
@@ -54,18 +65,25 @@ class Processor {
 			//this.plugin.userObject = await new User(this.app, this.plugin).getUser();
 		}
 
-		if (this.plugin.settings.debugging) console.log("Processor: Reset automaton");
-		this.automaton = new Automaton(this.app, this.plugin, this);
+		try {
+			if (this.plugin.settings.debugging) console.log("Processor: Reset automaton");
+			this.automaton = new Automaton(this.app, this.plugin, this);
 
-		await this.automaton.run();
+			await this.automaton.run();
 
-		switch (this.automaton.status) {
-			case AutomatonStatus.ERROR:
-				new Notice("Error while syncing tasks");
-				break;
-			case AutomatonStatus.FINISHED:
-				new Notice("Finished syncing tasks");
-				break;
+			switch (this.automaton.status) {
+				case AutomatonStatus.ERROR:
+					new Notice("Error while syncing tasks");
+					break;
+				case AutomatonStatus.FINISHED:
+					new Notice("Finished syncing tasks");
+					break;
+			}
+		} catch (e) {
+			console.error("Processor: Error during sync", e);
+			new Notice("Error while syncing tasks");
+		} finally {
+			this.syncing = false;
 		}
 
 		if (this.plugin.settings.debugging) console.log("Processor: End processing");
@@ -326,9 +344,8 @@ function compareModelTasks(local: ModelsTask, vikunja: ModelsTask): boolean {
 	const priority = local.priority === vikunja.priority;
 	const status = local.done === vikunja.done;
 	const doneAt = local.doneAt === vikunja.doneAt;
-	const updated = local.updated === vikunja.updated;
 
-	return title && description && dueDate && labels && priority && status && doneAt && updated;
+	return title && description && dueDate && labels && priority && status && doneAt;
 }
 
 export {Processor, compareModelTasks};
