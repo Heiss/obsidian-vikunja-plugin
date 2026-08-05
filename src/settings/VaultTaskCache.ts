@@ -96,7 +96,9 @@ export default class VaultTaskCache {
 		}
 
 		const cachedTask = this.get(local.task.id);
-		const currentDate = moment().format("YYYY-MM-DDTHH:mm:ss[Z]");
+		// .utc() for the same reason as dataviewSearcher.ts: the "[Z]" literal was
+		// labelling local time as UTC.
+		const currentDate = moment().utc().format("YYYY-MM-DDTHH:mm:ss[Z]");
 		if (cachedTask !== undefined && !cachedTask.isTaskEqual(local.task)) {
 			if (this.plugin.settings.debugging) console.log("VaultTaskCache: Updating task", local.task.id, "with updated date", currentDate);
 			local.task.updated = currentDate;
