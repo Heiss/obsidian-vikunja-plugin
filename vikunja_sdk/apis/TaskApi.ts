@@ -520,7 +520,7 @@ export class TaskApi extends runtime.BaseAPI {
         }
 
         const response = await this.request({
-            path: `/tasks/all`,
+            path: `/tasks`,
             method: 'GET',
             headers: headerParameters,
             query: queryParameters,
