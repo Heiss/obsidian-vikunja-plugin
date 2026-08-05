@@ -117,7 +117,13 @@ export class DataviewSearcher implements VaultSearcher {
 				parsed.updated = cachedTask.task.updated;
 			} else {
 				if (this.plugin.settings.debugging) console.log("DataviewSearcher: Fallback to file modified date");
-				parsed.updated = moment(file.stat.mtime).format("YYYY-MM-DDTHH:mm:ss[Z]");
+				// .utc() is required: format() renders LOCAL time while the "[Z]" literal
+				// claims UTC, so in any non-UTC timezone the vault timestamp is offset from
+				// reality. updateTasks.ts resolves sync direction with
+				// `vikunjaTask.updated > task.task.updated`, so an inflated vault timestamp
+				// makes the vault win every comparison and changes made in Vikunja are
+				// silently reverted.
+				parsed.updated = moment(file.stat.mtime).utc().format("YYYY-MM-DDTHH:mm:ss[Z]");
 			}
 
 			const vaultParsed = new PluginTask(file.path, task.line, parsed);
