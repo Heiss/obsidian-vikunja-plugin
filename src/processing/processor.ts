@@ -99,13 +99,11 @@ class Processor {
 	}
 
 	getTaskContent(task: PluginTask): string {
-		const content: string = this.taskFormatter.format(task.task);
-		return `${content} `;
+		return this.taskFormatter.format(task.task);
 	}
 
 	getTaskContentWithoutVikunja(task: PluginTask): string {
-		const content: string = this.taskFormatter.formatRaw(task.task);
-		return `${content} `;
+		return this.taskFormatter.formatRaw(task.task);
 	}
 
 	async updateTasksOnStartup() {
